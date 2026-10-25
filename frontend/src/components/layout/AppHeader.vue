@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
 import { useRouter } from 'vue-router'
 import { navLabels, actionLabels } from '@/constants/labels'
+import { siteBrand } from '@/constants/site'
 
 const auth = useAuthStore()
 const notification = useNotificationStore()
@@ -26,9 +27,9 @@ async function handleLogout() {
   <header class="app-header">
     <div class="header-inner">
       <div class="header-left">
-        <RouterLink to="/" class="brand">
+        <RouterLink to="/" class="brand" :title="`${siteBrand.schoolName} · ${siteBrand.clubName}`">
           <span class="brand-icon">&lt;/&gt;</span>
-          <span class="brand-text">ACMate</span>
+          <span class="brand-text">{{ siteBrand.clubName }}</span>
         </RouterLink>
         <nav class="main-nav">
           <RouterLink to="/" class="nav-link" active-class="nav-link-active">
@@ -114,6 +115,8 @@ async function handleLogout() {
 }
 
 .brand {
+  flex-shrink: 0;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 8px;

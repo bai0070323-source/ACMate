@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { listPlans } from '@/api/training'
 import type { PlanSummary, ListType } from '@/types/training'
 import { trainingTypeLabels, trainingTimeStatusLabels } from '@/constants/labels'
@@ -10,6 +10,7 @@ import ErrorState from '@/components/common/ErrorState.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 const plans = ref<PlanSummary[]>([])
 const loading = ref(true)
@@ -18,7 +19,10 @@ const total = ref(0)
 const page = ref(1)
 const size = 20
 
-const activeTab = ref<ListType>('PUBLIC')
+function listTypeFromQuery(value: unknown): ListType {
+  return value === 'MY_CREATED' || value === 'MY_JOINED' ? value : 'PUBLIC'
+}
+const activeTab = ref<ListType>(listTypeFromQuery(route.query.type))
 const timeStatusFilter = ref('')
 const keyword = ref('')
 
@@ -69,6 +73,7 @@ function onPageChange(p: number) {
 }
 
 watch(activeTab, () => { page.value = 1; fetchPlans() })
+watch(() => route.query.type, (value) => { activeTab.value = listTypeFromQuery(value) })
 
 onMounted(fetchPlans)
 </script>
