@@ -12,6 +12,20 @@ spring:
   application:
     name: acmate
 
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:true}
+      mail.smtp.starttls.required: ${MAIL_STARTTLS:true}
+      mail.smtp.ssl.enable: ${MAIL_SSL:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:acmate}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: ${DB_USERNAME:root}
@@ -36,6 +50,13 @@ mybatis-plus:
       id-type: auto
 
 acmate:
+  login:
+    email-enabled: ${LOGIN_EMAIL_ENABLED:false}
+    mail-from: ${MAIL_FROM:}
+    github-enabled: ${LOGIN_GITHUB_ENABLED:false}
+    github-client-id: ${GITHUB_CLIENT_ID:}
+    github-client-secret: ${GITHUB_CLIENT_SECRET:}
+    github-callback-url: ${GITHUB_CALLBACK_URL:}
   codeforces:
     scheduling:
       enabled: true
