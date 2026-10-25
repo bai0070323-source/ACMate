@@ -15,6 +15,7 @@ public class Post {
     private String contentMd;
     private Integer status;
     private Integer isPinned;
+    private LocalDateTime pinnedUntil;
     private Long acceptedCommentId;
     private Integer viewCount;
     private Integer likeCount;
@@ -55,6 +56,8 @@ public class Post {
     public void setStatus(Integer v) { this.status = v; }
     public Integer getIsPinned() { return isPinned; }
     public void setIsPinned(Integer v) { this.isPinned = v; }
+    public LocalDateTime getPinnedUntil() { return pinnedUntil; }
+    public void setPinnedUntil(LocalDateTime v) { this.pinnedUntil = v; }
     public Long getAcceptedCommentId() { return acceptedCommentId; }
     public void setAcceptedCommentId(Long v) { this.acceptedCommentId = v; }
     public Integer getViewCount() { return viewCount; }

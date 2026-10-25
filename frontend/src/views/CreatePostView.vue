@@ -14,6 +14,7 @@ const contentMd = ref('')
 const postType = ref<PostType>('OTHER')
 const problemId = ref('')
 const broadcast = ref(false)
+const pinDuration = ref('forever')
 const saving = ref(false)
 const error = ref('')
 
@@ -33,6 +34,12 @@ async function handleCreate() {
       postType: postType.value,
       problemId: problemId.value ? Number(problemId.value) : undefined,
       broadcast: broadcast.value || undefined,
+      ...(postType.value === 'ANNOUNCEMENT' ? {
+        pinned: pinDuration.value !== 'none',
+        pinDurationHours: pinDuration.value !== 'forever' && pinDuration.value !== 'none'
+          ? Number(pinDuration.value)
+          : undefined,
+      } : {}),
     })
     router.push({ name: 'post-detail', params: { id: r.id } })
   } catch (e: unknown) {
@@ -75,6 +82,19 @@ async function handleCreate() {
           <option v-for="t in types" :key="t" :value="t" :disabled="!canSelect(t)">
             {{ postTypeLabels[t] || t }}{{ !canSelect(t) ? '（仅管理员）' : '' }}
           </option>
+        </select>
+      </div>
+
+      <div class="field" v-if="postType === 'ANNOUNCEMENT' && auth.isAdmin">
+        <label class="field-label" for="announcement-pin-duration">置顶时长</label>
+        <select id="announcement-pin-duration" v-model="pinDuration" class="field-input">
+          <option value="forever">一直置顶</option>
+          <option value="1">1 小时</option>
+          <option value="24">1 天</option>
+          <option value="72">3 天</option>
+          <option value="168">7 天</option>
+          <option value="720">30 天</option>
+          <option value="none">不置顶</option>
         </select>
       </div>
 

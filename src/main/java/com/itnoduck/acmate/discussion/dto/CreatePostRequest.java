@@ -13,6 +13,8 @@ public class CreatePostRequest {
     private Long problemId;
     private Long trainingPlanId;
     private Boolean broadcast;
+    private Boolean pinned;
+    private Integer pinDurationHours;
 
     public String getTitle() { return title; }
     public void setTitle(String v) { this.title = v; }
@@ -26,4 +28,8 @@ public class CreatePostRequest {
     public void setTrainingPlanId(Long v) { this.trainingPlanId = v; }
     public Boolean getBroadcast() { return broadcast; }
     public void setBroadcast(Boolean v) { this.broadcast = v; }
+    public Boolean getPinned() { return pinned; }
+    public void setPinned(Boolean v) { this.pinned = v; }
+    public Integer getPinDurationHours() { return pinDurationHours; }
+    public void setPinDurationHours(Integer v) { this.pinDurationHours = v; }
 }
