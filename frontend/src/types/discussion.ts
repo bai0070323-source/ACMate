@@ -62,6 +62,8 @@ export interface CreatePostRequest {
   problemId?: number
   trainingPlanId?: number
   broadcast?: boolean
+  pinned?: boolean
+  pinDurationHours?: number
 }
 
 export interface UpdatePostRequest {

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { actionLabels } from '@/constants/labels'
+import { siteBrand } from '@/constants/site'
 import { ElMessage } from 'element-plus'
 
 const auth = useAuthStore()
@@ -58,9 +59,9 @@ async function handleRegister() {
       <div class="auth-header">
         <RouterLink to="/" class="brand">
           <span class="brand-icon">&lt;/&gt;</span>
-          <span class="brand-text">ACMate</span>
+          <span class="brand-text">{{ siteBrand.clubName }}</span>
         </RouterLink>
-        <p class="auth-subtitle">创建你的账号</p>
+        <p class="auth-subtitle">{{ siteBrand.schoolLabel }} · 创建你的账号</p>
       </div>
       <form class="auth-form" @submit.prevent="handleRegister">
         <div class="form-field">

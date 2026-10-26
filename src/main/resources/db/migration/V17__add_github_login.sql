@@ -1,0 +1,5 @@
+CREATE TABLE user_github (
+    github_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+    CONSTRAINT fk_github_user FOREIGN KEY (user_id) REFERENCES app_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

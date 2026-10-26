@@ -66,6 +66,18 @@ public class DiscussionServiceImpl implements DiscussionService {
             if (currentUser == null || currentUser.getIsAdmin() == null || currentUser.getIsAdmin() != 1) {
                 throw new BusinessException(403, "只有管理员才能发布公告");
             }
+        } else if (req.getPinned() != null || req.getPinDurationHours() != null) {
+            throw new BusinessException(400, "只有公告可以设置置顶");
+        }
+        boolean pinned = !Boolean.FALSE.equals(req.getPinned());
+        Integer pinDurationHours = req.getPinDurationHours();
+        if ("ANNOUNCEMENT".equals(type)) {
+            if (!pinned && pinDurationHours != null) {
+                throw new BusinessException(400, "不置顶时不能设置置顶时长");
+            }
+            if (pinDurationHours != null && (pinDurationHours < 1 || pinDurationHours > 8760)) {
+                throw new BusinessException(400, "置顶时长需在1到8760小时之间");
+            }
         }
         if ("SOLUTION".equals(type) && req.getProblemId() == null) {
             throw new BusinessException(400, "题解必须关联题目");
@@ -84,7 +96,9 @@ public class DiscussionServiceImpl implements DiscussionService {
         post.setProblemId(req.getProblemId());
         post.setTrainingPlanId(req.getTrainingPlanId());
         post.setStatus(1);
-        post.setIsPinned(0);
+        post.setIsPinned("ANNOUNCEMENT".equals(type) && pinned ? 1 : 0);
+        post.setPinnedUntil("ANNOUNCEMENT".equals(type) && pinned && pinDurationHours != null
+                ? LocalDateTime.now().plusHours(pinDurationHours) : null);
         post.setViewCount(0);
         post.setLikeCount(0);
         post.setCommentCount(0);
@@ -153,7 +167,8 @@ public class DiscussionServiceImpl implements DiscussionService {
         if (postType != null && !postType.isBlank()) qw.eq(Post::getPostType, postType);
         if (problemId != null) qw.eq(Post::getProblemId, problemId);
         if (keyword != null && !keyword.isBlank()) qw.like(Post::getTitle, keyword.strip());
-        qw.orderByDesc(Post::getIsPinned).orderByDesc(Post::getCreateTime);
+        qw.last("ORDER BY CASE WHEN is_pinned = 1 AND (pinned_until IS NULL OR pinned_until > CURRENT_TIMESTAMP) " +
+                "THEN 1 ELSE 0 END DESC, create_time DESC, id DESC");
 
         Page<Post> result = postMapper.selectPage(new Page<>(page, size), qw);
         List<Post> posts = result.getRecords();
@@ -362,7 +377,7 @@ public class DiscussionServiceImpl implements DiscussionService {
         r.setLikeCount(p.getLikeCount() != null ? p.getLikeCount() : 0);
         r.setCommentCount(p.getCommentCount() != null ? p.getCommentCount() : 0);
         r.setViewCount(p.getViewCount() != null ? p.getViewCount() : 0);
-        r.setPinned(p.getIsPinned() != null && p.getIsPinned() == 1);
+        r.setPinned(isPinnedNow(p));
         r.setActive(p.getStatus() != null && p.getStatus() == 1);
         r.setCreateTime(p.getCreateTime());
 
@@ -385,7 +400,7 @@ public class DiscussionServiceImpl implements DiscussionService {
         r.setPostType(p.getPostType()); r.setAuthorUserId(p.getAuthorUserId());
         r.setProblemId(p.getProblemId()); r.setTrainingPlanId(p.getTrainingPlanId());
         r.setActive(p.getStatus() != null && p.getStatus() == 1);
-        r.setPinned(p.getIsPinned() != null && p.getIsPinned() == 1);
+        r.setPinned(isPinnedNow(p));
         r.setLikeCount(p.getLikeCount() != null ? p.getLikeCount() : 0);
         r.setCommentCount(p.getCommentCount() != null ? p.getCommentCount() : 0);
         r.setViewCount(p.getViewCount() != null ? p.getViewCount() : 0);
@@ -451,6 +466,11 @@ public class DiscussionServiceImpl implements DiscussionService {
         }
         r.setComments(topLevel);
         return r;
+    }
+
+    private boolean isPinnedNow(Post post) {
+        return post.getIsPinned() != null && post.getIsPinned() == 1
+                && (post.getPinnedUntil() == null || post.getPinnedUntil().isAfter(LocalDateTime.now()));
     }
 
     private CommentResponse toCommentResponse(PostComment c, AppUser u) {

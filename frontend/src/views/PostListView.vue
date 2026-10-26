@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { listPosts } from '@/api/discussion'
 import type { PostSummary, PostType } from '@/types/discussion'
 import { postTypeLabels } from '@/constants/labels'
@@ -10,6 +10,7 @@ import ErrorState from '@/components/common/ErrorState.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
 
 const router = useRouter()
+const route = useRoute()
 const posts = ref<PostSummary[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -17,9 +18,12 @@ const total = ref(0)
 const page = ref(1)
 const size = 20
 const keyword = ref('')
-const postType = ref('')
+const types = Object.keys(postTypeLabels) as PostType[]
 
-const types: PostType[] = ['SOLUTION', 'QUESTION', 'CONTEST_SUMMARY', 'TRAINING_EXPERIENCE', 'ANNOUNCEMENT', 'OTHER']
+function categoryFromQuery(value: unknown) {
+  return typeof value === 'string' && types.includes(value as PostType) ? value : ''
+}
+const postType = ref(categoryFromQuery(route.query.postType))
 
 async function fetchPosts() {
   loading.value = true; error.value = ''
@@ -35,6 +39,13 @@ function onSearch() { page.value = 1; fetchPosts() }
 function onPageChange(p: number) { page.value = p; fetchPosts() }
 
 onMounted(fetchPosts)
+watch(() => route.query.postType, (value) => {
+  const category = categoryFromQuery(value)
+  if (category === postType.value) return
+  postType.value = category
+  page.value = 1
+  fetchPosts()
+})
 </script>
 
 <template>
