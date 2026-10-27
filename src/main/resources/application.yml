@@ -2,16 +2,24 @@ server:
   port: 8080
   servlet:
     session:
-      timeout: 8h
+      timeout: 1h
       cookie:
         http-only: true
         same-site: lax
-        max-age: 8h
+        max-age: 1h
 
 spring:
   application:
     name: acmate
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 2s
+      timeout: 2s
+      database: 3
   mail:
     host: ${MAIL_HOST:}
     port: ${MAIL_PORT:587}
