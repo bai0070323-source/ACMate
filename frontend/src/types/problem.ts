@@ -10,6 +10,7 @@ export interface ProblemSummary {
   creatorUsername: string | null
   creatorNickname: string | null
   createTime: string
+  solved?: boolean
 }
 
 export interface ProblemDetail {
@@ -45,6 +46,7 @@ export interface ProblemQueryParams {
   difficulty?: string
   keyword?: string
   creatorUserId?: number
+  completion?: string
 }
 
 export interface CreateProblemRequest {
@@ -117,4 +119,8 @@ export interface AdminProblemQueryParams {
 
 export interface AdminDeactivateRequest {
   reason: string
+}
+
+export interface ImportedProblemPreview extends CreateProblemRequest {
+  warnings: string[]
 }

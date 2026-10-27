@@ -96,3 +96,9 @@ export async function adminRestoreProblem(id: number): Promise<void> {
     }),
   )
 }
+
+export async function importNowcoderProblem(url: string): Promise<import('@/types/problem').ImportedProblemPreview> {
+  return withCsrf((headerName, token) => apiClient.post<import('@/types/problem').ImportedProblemPreview>(
+    '/problems/import/nowcoder', { url }, { headers: { [headerName]: token } },
+  ).then(response => response.data))
+}

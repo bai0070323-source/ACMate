@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/auth'
 import { actionLabels } from '@/constants/labels'
 import { siteBrand } from '@/constants/site'
 import { ElMessage } from 'element-plus'
+import EmailCodeField from '@/components/common/EmailCodeField.vue'
+import { sendRegistrationCode } from '@/api/account'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -12,6 +14,7 @@ const router = useRouter()
 const username = ref('')
 const nickname = ref('')
 const email = ref('')
+const emailCode = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const submitting = ref(false)
@@ -19,7 +22,7 @@ const errorMsg = ref('')
 
 async function handleRegister() {
   errorMsg.value = ''
-  if (!username.value.trim() || !nickname.value.trim() || !password.value) {
+  if (!username.value.trim() || !nickname.value.trim() || !password.value || !email.value.trim() || !/^\d{6}$/.test(emailCode.value)) {
     errorMsg.value = '请填写必填字段'
     return
   }
@@ -33,7 +36,8 @@ async function handleRegister() {
       username.value.trim(),
       password.value,
       nickname.value.trim(),
-      email.value.trim() || undefined,
+      email.value.trim(),
+      emailCode.value,
     )
     ElMessage.success('注册成功，请登录')
     router.push({ name: 'login' })
@@ -88,15 +92,20 @@ async function handleRegister() {
           <p class="field-hint">昵称全站唯一，将显示在题目、帖子和排行榜中。</p>
         </div>
         <div class="form-field">
-          <label for="reg-email">邮箱</label>
+          <label for="reg-email">邮箱 <span class="required">*</span></label>
           <input
             id="reg-email"
             v-model="email"
             type="email"
             autocomplete="email"
-            placeholder="请输入邮箱（选填）"
+            placeholder="请输入邮箱地址"
+            required
+            maxlength="128"
             :disabled="submitting"
           />
+        </div>
+        <div class="form-field">
+          <EmailCodeField v-model="emailCode" :email="email" :send="() => sendRegistrationCode(email.trim())" :disabled="submitting" />
         </div>
         <div class="form-field">
           <label for="reg-password">密码 <span class="required">*</span></label>
