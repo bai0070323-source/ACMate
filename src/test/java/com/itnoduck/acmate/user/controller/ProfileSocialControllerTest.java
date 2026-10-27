@@ -23,6 +23,7 @@ class ProfileSocialControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean UserSocialService social;
     @MockitoBean UserActivityService activity;
+    @MockitoBean PublicUserActivityService publicActivity;
     @MockitoBean PostFavoriteService favorites;
     @MockitoBean DatabaseUserDetailsService details;
     final AuthenticatedUser principal=new AuthenticatedUser(1L,"member","hash","Member",null,null,null,false,true,List.of());
@@ -32,10 +33,17 @@ class ProfileSocialControllerTest {
                 .andExpect(jsonPath("$.lastLoginIp").doesNotExist()).andExpect(jsonPath("$.email").doesNotExist());
     }
     @Test void activityAndRecentInterfacesArePublicAndOnlyReadStoredData() throws Exception {
-        when(activity.recent(2)).thenReturn(List.of());
+        when(publicActivity.recent(2,null)).thenReturn(List.of());
         mvc.perform(get("/api/users/2/submissions/recent")).andExpect(status().isOk()).andExpect(content().json("[]"));
         mvc.perform(get("/api/users/2/activity")).andExpect(status().isOk());
-        verify(activity).activity(2);
+        verify(publicActivity).activity(2,null);
+    }
+    @Test void ownerUsesPrivateActivityWhileVisitorsUseFilteredActivity() throws Exception {
+        when(activity.recent(1,null)).thenReturn(List.of());
+        when(publicActivity.recent(1,null)).thenReturn(List.of());
+        mvc.perform(get("/api/users/1/submissions/recent").with(user(principal))).andExpect(status().isOk());
+        mvc.perform(get("/api/users/1/submissions/recent")).andExpect(status().isOk());
+        verify(activity).recent(1,null);verify(publicActivity).recent(1,null);
     }
     @Test void followAndFavoriteWritesRequireLoginAndCsrf() throws Exception {
         for(String path:List.of("/api/users/2/follow","/api/posts/3/favorite")) {
@@ -45,9 +53,9 @@ class ProfileSocialControllerTest {
         verifyNoInteractions(social,favorites);
     }
     @Test void platformQueriesRemainPublicReadOnlyAndValidateInService()throws Exception {
-        mvc.perform(get("/api/users/2/activity?platform=NOWCODER")).andExpect(status().isOk());verify(activity).activity(2,"NOWCODER");
-        mvc.perform(get("/api/users/2/submissions/recent?platform=NOWCODER")).andExpect(status().isOk());verify(activity).recent(2,"NOWCODER");
-        mvc.perform(get("/api/users/2/oj-overview?platform=NOWCODER")).andExpect(status().isOk());verify(activity).overview(2,"NOWCODER");
+        mvc.perform(get("/api/users/2/activity?platform=NOWCODER")).andExpect(status().isOk());verify(publicActivity).activity(2,"NOWCODER");
+        mvc.perform(get("/api/users/2/submissions/recent?platform=NOWCODER")).andExpect(status().isOk());verify(publicActivity).recent(2,"NOWCODER");
+        mvc.perform(get("/api/users/2/oj-overview?platform=NOWCODER")).andExpect(status().isOk());verify(publicActivity).overview(2,"NOWCODER");
     }
     @Test void followUsesCurrentPrincipalAndSupportsUnfollow() throws Exception {
         mvc.perform(put("/api/users/2/follow").param("userId","999").with(user(principal)).with(csrf())).andExpect(status().isNoContent());

@@ -3,7 +3,7 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getUserProfile } from '@/api/users'
 import type { UserProfile } from '@/types/user'
-import { getSubmissionActivity, getRecentSubmissions, getOjOverview, type OjOverview, type OjPlatform, type SubmissionActivity, type RecentSubmission } from '@/api/profile-social'
+import { getSubmissionActivity, getRecentSubmissions, getOjOverview, getNowcoderHistoryAccounts, getNowcoderHistoryOverview, getNowcoderHistoryActivity, getNowcoderHistoryRecent, type NowcoderHistoryAccount, type OjOverview, type OjPlatform, type SubmissionActivity, type RecentSubmission } from '@/api/profile-social'
 import PageContainer from '@/components/layout/PageContainer.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
@@ -15,6 +15,7 @@ const profile = ref<UserProfile | null>(null)
 const activity = ref<SubmissionActivity | null>(null)
 const recent = ref<RecentSubmission[]>([])
 const overview=ref<OjOverview|null>(null), platform=ref<OjPlatform>('ALL'), metricsLoading=ref(false), overviewError=ref(false)
+const historyAccounts=ref<NowcoderHistoryAccount[]>([]), selectedUid=ref('ALL'), historyError=ref(false)
 const nowcoderUid=computed(()=>overview.value?.accounts.find(a=>a.platform==='NOWCODER')?.uid)
 const stats=computed(()=>overview.value?.stats ?? (platform.value==='ALL'?profile.value?.ojStats:null))
 let metricsRequest=0
@@ -39,16 +40,27 @@ async function load() {
   loading.value = false
 }
 async function refreshMetrics() {
-  const token=++metricsRequest, id=userId.value, selected=platform.value
+  const token=++metricsRequest, id=userId.value, selected=platform.value, uid=selectedUid.value
   metricsLoading.value=true
-  const results=await Promise.allSettled([getOjOverview(id,selected),getSubmissionActivity(id,selected),getRecentSubmissions(id,selected)])
-  if(token!==metricsRequest || id!==userId.value || selected!==platform.value)return
+  const results=selected==='NOWCODER' && uid!=='ALL'
+    ? await Promise.allSettled([getNowcoderHistoryOverview(id,uid),getNowcoderHistoryActivity(id,uid),getNowcoderHistoryRecent(id,uid)])
+    : await Promise.allSettled([getOjOverview(id,selected),getSubmissionActivity(id,selected),getRecentSubmissions(id,selected)])
+  if(token!==metricsRequest || id!==userId.value || selected!==platform.value || uid!==selectedUid.value)return
   overviewError.value=results[0].status==='rejected';overview.value=results[0].status==='fulfilled'?results[0].value:null
   activityError.value=results[1].status==='rejected';activity.value=results[1].status==='fulfilled'?results[1].value:null
   recentError.value=results[2].status==='rejected';recent.value=results[2].status==='fulfilled'?results[2].value:[]
   metricsLoading.value=false
 }
-watch(platform,()=>{void refreshMetrics()})
+watch(platform,async value=>{
+  selectedUid.value='ALL'
+  if(value==='NOWCODER'){
+    const id=userId.value;historyError.value=false
+    try{const accounts=await getNowcoderHistoryAccounts(id);if(id!==userId.value||platform.value!==value)return;historyAccounts.value=accounts;selectedUid.value=accounts.find(a=>a.uid===nowcoderUid.value)?.uid || accounts[0]?.uid || 'ALL'}
+    catch{historyError.value=true;historyAccounts.value=[]}
+  }
+  void refreshMetrics()
+})
+watch(selectedUid,()=>{void refreshMetrics()})
 function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
 function relativeTime(value: string) {
   const difference = Math.max(0, Date.now() - new Date(value).getTime())
@@ -58,7 +70,7 @@ function relativeTime(value: string) {
   return Math.floor(difference / 86_400_000) + ' 天前'
 }
 function accepted(verdict: string) { return ['OK', 'AC', 'ACCEPTED'].includes(verdict.toUpperCase()) }
-watch(userId, load, { immediate: true })
+watch(userId, () => {metricsRequest++;platform.value='ALL';selectedUid.value='ALL';historyAccounts.value=[];void load()}, { immediate: true })
 onUnmounted(() => {request++;metricsRequest++})
 </script>
 <template>
@@ -70,7 +82,8 @@ onUnmounted(() => {request++;metricsRequest++})
       <main class="profile-content">
         <p v-if="profile.accountStatus === 'DISABLED'" class="disabled-banner">该账号已停用</p>
         <section class="profile-section" aria-labelledby="profile-stats-title">
-          <div class="stats-heading"><h2 id="profile-stats-title">刷题统计</h2><select v-model="platform" aria-label="刷题统计平台"><option value="ALL">全部平台</option><option value="NOWCODER">牛客</option><option value="CODEFORCES">Codeforces</option></select></div>
+          <div class="stats-heading"><h2 id="profile-stats-title">刷题统计</h2><select v-model="platform" aria-label="刷题统计平台"><option value="ALL">全部平台</option><option value="NOWCODER">牛客</option><option value="CODEFORCES">Codeforces</option></select><select v-if="platform==='NOWCODER' && historyAccounts.length" v-model="selectedUid" aria-label="牛客历史账号"><option value="ALL">全部牛客账号</option><option v-for="account in historyAccounts" :key="account.uid" :value="account.uid">{{ account.uid === 'UNKNOWN' ? '归属未知的历史记录' : '牛客 UID ' + account.uid }}（{{ account.submissions }} 次）</option></select></div>
+          <p v-if="historyError" role="alert">牛客账号历史加载失败，请切换平台后重试。</p>
           <p v-if="overviewError" role="alert" class="section-error">统计数据加载失败，<button @click="refreshMetrics">重试</button></p>
           <div class="solve-stats"><div><strong>{{ stats?.solvedCount ?? '—' }}</strong><span>累计通过</span></div><div><strong>{{ stats?.solvedCount30d ?? '—' }}</strong><span>近 30 天通过</span></div><div><strong>{{ stats?.solvedCount7d ?? '—' }}</strong><span>近 7 天通过</span></div></div>
           <p class="last-accepted">{{ stats?.lastAcceptedTime ? '最近通过：' + formatTime(stats.lastAcceptedTime) : '暂无已同步的通过记录。' }}</p>

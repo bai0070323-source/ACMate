@@ -43,6 +43,9 @@ class DisabledUserSessionTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean private com.itnoduck.acmate.security.PasswordLoginLimiter passwordLoginLimiter;
+    @MockitoBean private com.itnoduck.acmate.security.ClientIpResolver clientIpResolver;
+
     @Autowired
     private SessionRegistry sessionRegistry;
 

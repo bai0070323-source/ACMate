@@ -20,8 +20,16 @@ class ProblemReviewControllerTest {
  final ProblemReviewController controller=new ProblemReviewController(jdbc,problems,command,new ObjectMapper());
  final AuthenticatedUser member=new AuthenticatedUser(2L,"member","hash","Member",null,null,null,false,true,List.of());
  @Test void ordinaryUsersCannotApprove(){assertEquals(403,assertThrows(BusinessException.class,()->controller.approve(1,new ProblemReviewController.Decision(null),member)).getCode());verifyNoInteractions(jdbc,command);}
+ @Test void pendingQuotaRejectsFurtherSubmissions(){
+  when(jdbc.queryForList(anyString(),eq(Long.class),eq(2L))).thenReturn(List.of(2L));
+  when(jdbc.queryForObject(contains("COUNT(*)"),eq(Long.class),eq(2L))).thenReturn(5L);
+  var request=new UpdateProblemRequest();request.setPlatform("NOWCODER");request.setExternalProblemKey("NC7");request.setTitle("new");
+  assertEquals(429,assertThrows(BusinessException.class,()->controller.propose(7,request,member)).getCode());
+  verifyNoInteractions(problems,command);
+ }
  @Test void publicChangeBecomesPendingWithoutUpdatingOfficialProblem(){
   when(jdbc.queryForList(anyString(),eq(Long.class),eq(7L))).thenReturn(List.of(7L));
+  when(jdbc.queryForList(anyString(),eq(Long.class),eq(2L))).thenReturn(List.of(2L));
   Problem p=new Problem();p.setId(7L);p.setPlatform("NOWCODER");p.setExternalProblemKey("NC7");p.setTitle("old");p.setUpdateTime(LocalDateTime.now());when(problems.selectById(7L)).thenReturn(p);
   var req=new UpdateProblemRequest();req.setPlatform("NOWCODER");req.setExternalProblemKey("NC7");req.setTitle("new");
   controller.propose(7,req,member);verify(jdbc).update(startsWith("INSERT INTO problem_change_request"),any(Object[].class));verifyNoInteractions(command);

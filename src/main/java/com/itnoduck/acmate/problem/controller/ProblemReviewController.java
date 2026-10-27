@@ -33,6 +33,9 @@ public class ProblemReviewController {
     }
     @PostMapping("/{problemId}") @Transactional
     public Map<String,Object> propose(@PathVariable long problemId,@Valid @RequestBody UpdateProblemRequest request,@AuthenticationPrincipal AuthenticatedUser user){
+        if(jdbc.queryForList("SELECT id FROM app_user WHERE id=? AND status=1 FOR UPDATE",Long.class,user.getId()).isEmpty())throw new BusinessException(401,"账号不可用");
+        Long pending=jdbc.queryForObject("SELECT COUNT(*) FROM problem_change_request WHERE author_user_id=? AND status='PENDING'",Long.class,user.getId());
+        if(pending != null && pending >= 5)throw new BusinessException(429,"待审核建议最多保留 5 条，请等待审核");
         var locks=jdbc.queryForList("SELECT id FROM problem WHERE id=? AND status=1 FOR UPDATE",Long.class,problemId);
         if(locks.isEmpty())throw new BusinessException(404,"题目不存在或已停用");
         Problem p=problems.selectById(problemId);
@@ -41,13 +44,24 @@ public class ProblemReviewController {
         jdbc.update("INSERT INTO problem_change_request(problem_id,author_user_id,base_update_time,base_fingerprint,original_content,proposed_content) VALUES(?,?,?,?,?,?)",problemId,user.getId(),p.getUpdateTime(),fingerprint(p),snapshot(p),json.writeValueAsString(request));
         return Map.of("message","修改建议已提交，等待管理员审核");
     }
+    private com.itnoduck.acmate.common.dto.PageResponse<Map<String,Object>> page(String where,Object[] args,int page,int size){
+        page=Math.max(1,page);size=Math.max(1,Math.min(size,20));
+        Long count=jdbc.queryForObject("SELECT COUNT(*) FROM problem_change_request WHERE "+where,Long.class,args);
+        var params=new java.util.ArrayList<Object>(java.util.Arrays.asList(args));params.add(size);params.add((long)(page-1)*size);
+        var rows=jdbc.queryForList("SELECT id,problem_id,author_user_id,status,reviewer_user_id,review_time,review_note,create_time FROM problem_change_request WHERE "+where+" ORDER BY id DESC LIMIT ? OFFSET ?",params.toArray());
+        long total=count==null?0:count;return new com.itnoduck.acmate.common.dto.PageResponse<>(page,size,total,(total+size-1)/size,rows);
+    }
     @GetMapping("/problem/{problemId}")
-    public List<Map<String,Object>> history(@PathVariable long problemId,@AuthenticationPrincipal AuthenticatedUser user){
-        if(user.isAdmin())return jdbc.queryForList("SELECT id,problem_id,author_user_id,original_content,proposed_content,status,reviewer_user_id,review_time,review_note,create_time FROM problem_change_request WHERE problem_id=? ORDER BY id DESC LIMIT 100",problemId);
-        return jdbc.queryForList("SELECT id,problem_id,author_user_id,original_content,proposed_content,status,reviewer_user_id,review_time,review_note,create_time FROM problem_change_request WHERE problem_id=? AND author_user_id=? ORDER BY id DESC LIMIT 100",problemId,user.getId());
+    public com.itnoduck.acmate.common.dto.PageResponse<Map<String,Object>> history(@PathVariable long problemId,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int size,@AuthenticationPrincipal AuthenticatedUser user){
+        return user.isAdmin()?page("problem_id=?",new Object[]{problemId},page,size):page("problem_id=? AND author_user_id=?",new Object[]{problemId,user.getId()},page,size);
     }
     @GetMapping("/pending")
-    public List<Map<String,Object>> pending(@AuthenticationPrincipal AuthenticatedUser user){admin(user);return jdbc.queryForList("SELECT id,problem_id,author_user_id,original_content,proposed_content,status,create_time FROM problem_change_request WHERE status='PENDING' ORDER BY id LIMIT 100");}
+    public com.itnoduck.acmate.common.dto.PageResponse<Map<String,Object>> pending(@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int size,@AuthenticationPrincipal AuthenticatedUser user){admin(user);return page("status='PENDING'",new Object[]{},page,size);}
+    @GetMapping("/{id}")
+    public Map<String,Object> detail(@PathVariable long id,@AuthenticationPrincipal AuthenticatedUser user){
+        var rows=user.isAdmin()?jdbc.queryForList("SELECT id,original_content,proposed_content FROM problem_change_request WHERE id=?",id):jdbc.queryForList("SELECT id,original_content,proposed_content FROM problem_change_request WHERE id=? AND author_user_id=?",id,user.getId());
+        if(rows.isEmpty())throw new BusinessException(404,"修改建议不存在");return rows.get(0);
+    }
     @PostMapping("/{id}/approve") @Transactional
     public void approve(@PathVariable long id,@Valid @RequestBody Decision decision,@AuthenticationPrincipal AuthenticatedUser user){
         admin(user);

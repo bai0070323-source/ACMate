@@ -9,10 +9,11 @@ import java.util.Locale;
 /** In development only direct loopback requests may run code; production requires a separately isolated judge. */
 @Component
 public class PracticeAccess {
-    private final boolean isolated;
-    public PracticeAccess(@Value("${acmate.practice.isolated-host:false}") boolean isolated){this.isolated=isolated;}
+    private final String mode;
+    public PracticeAccess(@Value("${acmate.practice.mode:${ACMATE_PRACTICE_MODE:disabled}}") String mode){this.mode=mode == null ? "disabled" : mode.strip().toLowerCase(Locale.ROOT);}
     public boolean allowed(HttpServletRequest request){
-        if(isolated)return true;
+        if("isolated".equals(mode))return true;
+        if(!"local".equals(mode))return false;
         if(request.getHeader("Forwarded")!=null||request.getHeader("X-Forwarded-For")!=null||request.getHeader("X-Real-IP")!=null)return false;
         String host=request.getServerName().toLowerCase(Locale.ROOT);
         if(!host.equals("localhost")&&!host.equals("127.0.0.1")&&!host.equals("::1")&&!host.equals("[::1]"))return false;

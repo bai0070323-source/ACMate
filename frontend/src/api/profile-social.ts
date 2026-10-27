@@ -14,6 +14,11 @@ export interface OjOverview { accounts: { platform: string; uid: string; lastSyn
 export const getOjOverview = async (id: number, platform: OjPlatform = 'ALL'): Promise<OjOverview> => (await api.get(`/users/${id}/oj-overview`, { params: { platform } })).data
 export const getSubmissionActivity = async (id: number, platform?: OjPlatform): Promise<SubmissionActivity> => (await api.get(`/users/${id}/activity`, { params: { platform } })).data
 export const getRecentSubmissions = async (id: number, platform?: OjPlatform): Promise<RecentSubmission[]> => (await api.get(`/users/${id}/submissions/recent`, { params: { platform } })).data
+export interface NowcoderHistoryAccount { uid: string; submissions: number }
+export const getNowcoderHistoryAccounts = async (id:number):Promise<NowcoderHistoryAccount[]> => (await api.get(`/users/${id}/nowcoder-history`)).data
+export const getNowcoderHistoryOverview = async (id:number,uid:string):Promise<OjOverview> => (await api.get(`/users/${id}/nowcoder-history/${uid}/overview`)).data
+export const getNowcoderHistoryActivity = async (id:number,uid:string):Promise<SubmissionActivity> => (await api.get(`/users/${id}/nowcoder-history/${uid}/activity`)).data
+export const getNowcoderHistoryRecent = async (id:number,uid:string):Promise<RecentSubmission[]> => (await api.get(`/users/${id}/nowcoder-history/${uid}/recent`)).data
 export interface FavoriteState { favorited: boolean; count: number }
 export const getFavorite = async (id: number): Promise<FavoriteState> => (await api.get(`/posts/${id}/favorite`)).data
 export const setFavorite = (id: number, value: boolean): Promise<FavoriteState> => withCsrf(async (h, t) => (await api.request<FavoriteState>({ method: value ? 'PUT' : 'DELETE', url: `/posts/${id}/favorite`, headers: { [h]: t } })).data)

@@ -33,9 +33,8 @@ public class NowcoderTrainingService {
     public void bind(long user,String uid){
         if(uid==null||!uid.strip().matches("[1-9][0-9]{0,11}"))throw new BusinessException(400,"请输入牛客个人主页中的数字 UID");
         if(account(user).hasAccount())throw new BusinessException(409,"已绑定牛客账号，请先解绑");
-        jdbc.update("INSERT IGNORE INTO nowcoder_account_owner(uid,user_id) VALUES(?,?)",uid.strip(),user);
-        Long owner=jdbc.queryForObject("SELECT user_id FROM nowcoder_account_owner WHERE uid=? FOR UPDATE",Long.class,uid.strip());
-        if(owner==null||owner.longValue()!=user)throw new BusinessException(409,"该牛客账号曾绑定其他用户，请联系管理员处理");
+        var owners=jdbc.queryForList("SELECT user_id FROM nowcoder_account_owner WHERE uid=?",Long.class,uid.strip());
+        if(!owners.isEmpty() && owners.get(0).longValue()!=user)throw new BusinessException(409,"该牛客账号曾绑定其他用户，请联系管理员处理");
         try{jdbc.update("INSERT INTO oj_account(user_id,platform,external_user_id,display_name,verify_status,sync_enabled) VALUES(?,'NOWCODER',?,?,0,1)",user,uid.strip(),uid.strip());}
         catch(org.springframework.dao.DuplicateKeyException ex){throw new BusinessException(409,"该牛客账号已被绑定");}
     }
@@ -69,12 +68,12 @@ public class NowcoderTrainingService {
             var locked=jdbc.queryForList("SELECT id FROM oj_account WHERE id=? AND user_id=? AND platform='NOWCODER' AND external_user_id=? AND verify_status=1 FOR UPDATE",account.id(),user,account.uid());
             if(locked.isEmpty())throw new BusinessException(409,"绑定信息已变化，请重新同步");
             for(var row:rows){
-                int inserted=jdbc.update("INSERT IGNORE INTO oj_submission(oj_account_id,user_id,platform,remote_submission_id,problem_id,external_problem_key,verdict,language,submitted_time,is_first_ac) VALUES(?,?,'NOWCODER',?,?,?,?,?,?,0)",account.id(),user,Long.toString(row.id()),id,problem.getExternalProblemKey(),row.verdict(),row.language(),row.submittedTime());
+                int inserted=jdbc.update("INSERT IGNORE INTO oj_submission(oj_account_id,user_id,platform,remote_submission_id,problem_id,external_problem_key,verdict,language,submitted_time,is_first_ac,nowcoder_uid) VALUES(?,?,'NOWCODER',?,?,?,?,?,?,0,?)",account.id(),user,Long.toString(row.id()),id,problem.getExternalProblemKey(),row.verdict(),row.language(),row.submittedTime(),account.uid());
                 var owners=jdbc.queryForList("SELECT id,user_id FROM oj_submission WHERE platform='NOWCODER' AND remote_submission_id=? FOR UPDATE",Long.toString(row.id()));
                 if(owners.isEmpty()||((Number)owners.get(0).get("user_id")).longValue()!=user)throw new BusinessException(409,"官方提交归属冲突，请联系管理员");
                 long localId=((Number)owners.get(0).get("id")).longValue();counts[0]+=inserted;
                 if(inserted>0)jdbc.update("INSERT INTO user_problem_status(user_id,problem_id,status,attempt_count,first_submit_time,last_submit_time) VALUES(?,?,1,1,?,?) ON DUPLICATE KEY UPDATE status=GREATEST(status,1),attempt_count=attempt_count+1,first_submit_time=COALESCE(LEAST(first_submit_time,VALUES(first_submit_time)),VALUES(first_submit_time)),last_submit_time=COALESCE(GREATEST(last_submit_time,VALUES(last_submit_time)),VALUES(last_submit_time))",user,id,row.submittedTime(),row.submittedTime());
-                jdbc.update("UPDATE oj_submission SET verdict=?,problem_id=?,external_problem_key=? WHERE id=?",row.verdict(),id,problem.getExternalProblemKey(),localId);
+                jdbc.update("UPDATE oj_submission SET verdict=?,problem_id=?,external_problem_key=?,nowcoder_uid=COALESCE(nowcoder_uid,?) WHERE id=?",row.verdict(),id,problem.getExternalProblemKey(),account.uid(),localId);
                 if("OK".equals(row.verdict())){
                     counts[1]++;
                     jdbc.update("INSERT INTO oj_first_ac(user_id,platform,external_problem_key,submission_id,create_time) VALUES(?,'NOWCODER',?,?,?) ON DUPLICATE KEY UPDATE submission_id=IF(VALUES(create_time)<create_time,VALUES(submission_id),submission_id),create_time=LEAST(create_time,VALUES(create_time))",user,problem.getExternalProblemKey(),localId,row.submittedTime());

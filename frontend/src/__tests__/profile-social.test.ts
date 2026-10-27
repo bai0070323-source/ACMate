@@ -7,7 +7,7 @@ import UserProfileView from '@/views/UserProfileView.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import SubmissionHeatmap from '@/components/common/SubmissionHeatmap.vue'
 import type { UserProfile } from '@/types/user'
-const calls = vi.hoisted(() => ({ getUserProfile: vi.fn(), getSocialSummary: vi.fn(), getFollowList: vi.fn(), setFollow: vi.fn(), getSubmissionActivity: vi.fn(), getRecentSubmissions: vi.fn(), getOjOverview: vi.fn() }))
+const calls = vi.hoisted(() => ({ getUserProfile: vi.fn(), getSocialSummary: vi.fn(), getFollowList: vi.fn(), setFollow: vi.fn(), getSubmissionActivity: vi.fn(), getRecentSubmissions: vi.fn(), getOjOverview: vi.fn(), getNowcoderHistoryAccounts: vi.fn(), getNowcoderHistoryOverview: vi.fn(), getNowcoderHistoryActivity: vi.fn(), getNowcoderHistoryRecent: vi.fn() }))
 const nc=vi.hoisted(()=>({getNowcoderAccount:vi.fn(),getProfileSync:vi.fn(),enqueueProfileSync:vi.fn(),bindNowcoderAccount:vi.fn(),retryProblemImports:vi.fn()}))
 vi.mock('@/api/nowcoder-training',()=>nc)
 vi.mock('@/api/users', () => ({ getUserProfile: calls.getUserProfile }))
@@ -19,6 +19,7 @@ const activity = { start: '2026-10-24', end: '2026-10-26', submissions: 5, activ
 beforeEach(() => {
   vi.resetAllMocks()
   nc.getNowcoderAccount.mockResolvedValue({hasAccount:false,verifyStatus:null});nc.getProfileSync.mockResolvedValue({status:'NOT_STARTED',nextPage:1,totalPages:0,fetched:0,inserted:0,importPending:0,importDone:0,importFailed:0})
+  calls.getNowcoderHistoryAccounts.mockResolvedValue([])
   calls.getOjOverview.mockResolvedValue({accounts:[],stats:profile.ojStats,todaySubmissions:5,todayAttempted:2,todaySolved:1})
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: function(this: HTMLDialogElement) { this.open = true } })
   Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: function(this: HTMLDialogElement) { this.open = false } })
@@ -81,6 +82,15 @@ describe('personal profile', () => {
     await wrapper.get('[aria-label="刷题统计平台"]').setValue('NOWCODER');await flushPromises()
     expect(calls.getOjOverview).toHaveBeenLastCalledWith(1,'NOWCODER');expect(calls.getSubmissionActivity).toHaveBeenLastCalledWith(1,'NOWCODER');expect(calls.getRecentSubmissions).toHaveBeenLastCalledWith(1,'NOWCODER')
     wrapper.unmount()
+  })
+  it('selects separate statistics for each historic Nowcoder account',async()=>{
+    calls.getNowcoderHistoryAccounts.mockResolvedValue([{uid:'123',submissions:2},{uid:'456',submissions:3},{uid:'UNKNOWN',submissions:1}])
+    calls.getNowcoderHistoryOverview.mockResolvedValue({accounts:[],stats:profile.ojStats,todaySubmissions:3,todayAttempted:1,todaySolved:1})
+    calls.getNowcoderHistoryActivity.mockResolvedValue(activity);calls.getNowcoderHistoryRecent.mockResolvedValue([])
+    const {wrapper}=await render(false);await wrapper.get('[aria-label="刷题统计平台"]').setValue('NOWCODER');await flushPromises()
+    expect(wrapper.get('[aria-label="牛客历史账号"]').text()).toContain('归属未知的历史记录')
+    await wrapper.get('[aria-label="牛客历史账号"]').setValue('456');await flushPromises()
+    expect(calls.getNowcoderHistoryOverview).toHaveBeenLastCalledWith(1,'456');expect(calls.getNowcoderHistoryActivity).toHaveBeenLastCalledWith(1,'456');expect(calls.getNowcoderHistoryRecent).toHaveBeenLastCalledWith(1,'456')
   })
   it('enqueues verified personal history and shows async statement progress',async()=>{
     nc.getNowcoderAccount.mockResolvedValue({hasAccount:true,uid:'123',verifyStatus:1})

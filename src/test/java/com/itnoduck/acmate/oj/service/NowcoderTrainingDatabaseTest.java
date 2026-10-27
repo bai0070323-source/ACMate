@@ -70,6 +70,36 @@ class NowcoderTrainingDatabaseTest {
   assertEquals(0,count("SELECT COUNT(*) FROM oj_account WHERE user_id=2 AND platform='NOWCODER'"));
   tx.executeWithoutResult(status->service.bind(1,"123"));assertTrue(service.account(1).hasAccount());
  }
+ @Test void pendingUidDoesNotReserveOwnershipUntilVerified(){
+  var tx=new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(source));
+  service.unbind(1);
+  tx.executeWithoutResult(status->service.bind(2,"456"));
+  assertEquals(0,count("SELECT COUNT(*) FROM nowcoder_account_owner WHERE uid='456'"));
+  service.unbind(2);
+  tx.executeWithoutResult(status->service.bind(1,"456"));
+  assertEquals(0,count("SELECT COUNT(*) FROM nowcoder_account_owner WHERE uid='456'"));
+ }
+ @Test void historyIsSeparatedByOriginalNowcoderUid(){
+  var now=LocalDateTime.now().withNano(0);
+  jdbc.update("INSERT INTO oj_submission(oj_account_id,user_id,platform,remote_submission_id,external_problem_key,verdict,submitted_time,nowcoder_uid) VALUES(1,1,'NOWCODER','a','NC1','OK',?,'123'),(1,1,'NOWCODER','b','NC1','OK',?,'456'),(1,1,'NOWCODER','c','NC2','WRONG_ANSWER',?,NULL),(1,1,'NOWCODER','d','NC3','OK',?,'456')",now,now,now,now);
+  var history=new com.itnoduck.acmate.user.service.NowcoderHistoryService(jdbc);
+  assertEquals(3,history.accounts(1).size());assertEquals(1,history.overview(1,"123").stats().solvedCount());assertEquals(2,history.overview(1,"456").stats().solvedCount());
+  assertEquals(1,history.activity(1,"UNKNOWN").submissions());assertEquals(2,history.recent(1,"456").size());
+  var visible=new com.itnoduck.acmate.user.service.PublicUserActivityService(jdbc);
+  assertEquals(1,visible.activity(1,"NOWCODER").submissions());assertEquals(1,visible.recent(1,"NOWCODER").size());assertEquals(1,visible.overview(1,"NOWCODER").stats().solvedCount());
+  var controller=new com.itnoduck.acmate.user.controller.NowcoderHistoryController(history);
+  var owner=new com.itnoduck.acmate.security.AuthenticatedUser(1L,"member","hash","Member",null,null,null,false,true,List.of());
+  assertEquals(3,controller.accounts(1,owner).size());assertEquals(1,controller.accounts(1,null).size());
+  assertEquals(404,assertThrows(BusinessException.class,()->controller.recent(1,"456",null)).getCode());
+  assertEquals(404,assertThrows(BusinessException.class,()->controller.recent(1,"UNKNOWN",null)).getCode());
+  assertEquals(1,controller.recent(1,"123",null).size());
+  var config=new org.apache.ibatis.session.Configuration();
+  config.setEnvironment(new org.apache.ibatis.mapping.Environment("test",new org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory(),source));config.addMapper(com.itnoduck.acmate.oj.mapper.OjSubmissionMapper.class);
+  try(var session=new org.apache.ibatis.session.SqlSessionFactoryBuilder().build(config).openSession()){
+   var stats=session.getMapper(com.itnoduck.acmate.oj.mapper.OjSubmissionMapper.class).getUserOjStats(1L,now.minusDays(30),now.minusDays(7));
+   assertEquals(1,((Number)stats.get("solved_count")).longValue());
+  }
+ }
  @Test void unverifiedAccountsCannotImportOfficialResults(){
   jdbc.update("UPDATE oj_account SET verify_status=0 WHERE id=1");assertEquals(409,assertThrows(BusinessException.class,()->service.sync(1,1)).getCode());verifyNoInteractions(client);assertEquals(0,count("SELECT COUNT(*) FROM oj_submission"));
  }

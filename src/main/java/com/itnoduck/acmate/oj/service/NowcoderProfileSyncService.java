@@ -85,11 +85,11 @@ public class NowcoderProfileSyncService {
                 var keys=new HashSet<String>();
                 for(var row:page.submissions()) {
                     String key="NC"+row.problemId();keys.add(key);Long local=findProblem(key);
-                    inserted+=jdbc.update("INSERT IGNORE INTO oj_submission(oj_account_id,user_id,platform,remote_submission_id,problem_id,external_problem_key,external_problem_title,verdict,language,submitted_time,is_first_ac) VALUES(?,?,'NOWCODER',?,?,?,?,?,?,?,0)",job.get("account_id"),user,Long.toString(row.id()),local,key,row.title(),row.verdict(),row.language(),row.time());
+                    inserted+=jdbc.update("INSERT IGNORE INTO oj_submission(oj_account_id,user_id,platform,remote_submission_id,problem_id,external_problem_key,external_problem_title,verdict,language,submitted_time,is_first_ac,nowcoder_uid) VALUES(?,?,'NOWCODER',?,?,?,?,?,?,?,0,?)",job.get("account_id"),user,Long.toString(row.id()),local,key,row.title(),row.verdict(),row.language(),row.time(),job.get("uid"));
                     var stored=jdbc.queryForMap("SELECT id,user_id FROM oj_submission WHERE platform='NOWCODER' AND remote_submission_id=? FOR UPDATE",Long.toString(row.id()));
                     if(number(stored,"user_id")!=user)throw new BusinessException(409,"官方提交归属冲突，请联系管理员");
                     long sid=number(stored,"id");
-                    jdbc.update("UPDATE oj_submission SET verdict=?,language=?,external_problem_title=?,problem_id=?,submitted_time=? WHERE id=?",row.verdict(),row.language(),row.title(),local,row.time(),sid);
+                    jdbc.update("UPDATE oj_submission SET verdict=?,language=?,external_problem_title=?,problem_id=?,submitted_time=?,nowcoder_uid=COALESCE(nowcoder_uid,?) WHERE id=?",row.verdict(),row.language(),row.title(),local,row.time(),job.get("uid"),sid);
                     if("OK".equals(row.verdict())) {
                         jdbc.update("INSERT INTO oj_first_ac(user_id,platform,external_problem_key,submission_id,create_time) VALUES(?,'NOWCODER',?,?,?) ON DUPLICATE KEY UPDATE submission_id=IF(VALUES(create_time)<create_time,VALUES(submission_id),submission_id),create_time=LEAST(create_time,VALUES(create_time))",user,key,sid,row.time());
                         // Database first: an existing NC number never triggers another remote import.

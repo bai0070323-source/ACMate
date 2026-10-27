@@ -46,6 +46,9 @@ class LogoutTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean private com.itnoduck.acmate.security.PasswordLoginLimiter passwordLoginLimiter;
+    @MockitoBean private com.itnoduck.acmate.security.ClientIpResolver clientIpResolver;
+
     @MockitoBean
     private AppUserMapper appUserMapper;
 
