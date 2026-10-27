@@ -178,7 +178,7 @@ public class DiscussionServiceImpl implements DiscussionService {
     @Override
     @Transactional
     public PostDetailResponse getPostDetail(Long postId, Long userId) {
-        if (postId == null || (idBloomFilter != null && !idBloomFilter.mightContain("posts", postId))) {
+        if (postId == null) {
             throw new BusinessException(404, "帖子不存在");
         }
         Post post = getPost(postId);
@@ -196,11 +196,7 @@ public class DiscussionServiceImpl implements DiscussionService {
 
     @Override
     public List<PostSummaryResponse> listPosts(String postType, Long problemId, String keyword, int page, int size) {
-        String queryKey = postQueryKey(postType, problemId, keyword);
-        String cacheKey = queryKey + ":page:" + page + ":" + size;
-        if (redisCache == null) return loadPostList(postType, problemId, keyword, page, size);
-        return redisCache.getOrLoad(cacheKey, POST_LIST_TYPE, PUBLIC_LIST_CACHE_TTL,
-                () -> loadPostList(postType, problemId, keyword, page, size));
+        return loadPostList(postType, problemId, keyword, page, size);
     }
 
     private List<PostSummaryResponse> loadPostList(String postType, Long problemId, String keyword, int page, int size) {
@@ -227,10 +223,7 @@ public class DiscussionServiceImpl implements DiscussionService {
 
     @Override
     public int countPosts(String postType, Long problemId, String keyword) {
-        String cacheKey = postQueryKey(postType, problemId, keyword) + ":count";
-        if (redisCache == null) return loadPostCount(postType, problemId, keyword);
-        return redisCache.getOrLoad(cacheKey, POST_COUNT_TYPE, PUBLIC_LIST_CACHE_TTL,
-                () -> loadPostCount(postType, problemId, keyword));
+        return loadPostCount(postType, problemId, keyword);
     }
 
     private int loadPostCount(String postType, Long problemId, String keyword) {

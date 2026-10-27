@@ -36,6 +36,14 @@ class UserRegistrationServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new UserRegistrationServiceImpl(appUserMapper, passwordEncoder, emailLogin);
+        lenient().when(emailLogin.emailAvailable()).thenReturn(true);
+    }
+
+    @Test void disabledEmailClosesRegistration() {
+        when(emailLogin.emailAvailable()).thenReturn(false);
+        assertThatThrownBy(() -> service.register(buildRequest("testuser", "password123", "Test User", "test@example.com")))
+            .isInstanceOf(BusinessException.class).hasMessageContaining("注册暂未开放");
+        verifyNoInteractions(appUserMapper);
     }
 
     @Test
@@ -109,7 +117,8 @@ class UserRegistrationServiceImplTest {
         assertThat(req.getEmail()).isNull();
 
         assertThatThrownBy(() -> service.register(req)).isInstanceOf(BusinessException.class).hasMessage("邮箱不能为空");
-        verifyNoInteractions(appUserMapper, emailLogin);
+        verifyNoInteractions(appUserMapper);
+        verify(emailLogin, never()).verifyCode(anyString(), anyString(), anyString());
     }
 
     @Test

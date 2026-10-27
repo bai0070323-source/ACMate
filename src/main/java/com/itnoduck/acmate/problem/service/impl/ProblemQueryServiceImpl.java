@@ -41,6 +41,8 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
     private final RedisJsonCache redisCache;
     private final RedisIdBloomFilter idBloomFilter;
     private final UserProblemStatusMapper statusMapper;
+    @Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
     private static final Duration PUBLIC_LIST_CACHE_TTL = Duration.ofSeconds(15);
     private static final TypeReference<PageResponse<ProblemSummaryResponse>> PROBLEM_PAGE_TYPE = new TypeReference<>() {};
 
@@ -73,9 +75,6 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
         if (id <= 0) {
             throw new BusinessException(404, "题目不存在");
         }
-        if (idBloomFilter != null && !idBloomFilter.mightContain("problems", id)) {
-            throw new BusinessException(404, "题目不存在");
-        }
         Problem problem = problemMapper.selectOne(
                 new LambdaQueryWrapper<Problem>()
                         .eq(Problem::getId, id));
@@ -95,10 +94,19 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
     public PageResponse<ProblemSummaryResponse> listProblems(ProblemQueryRequest request) {
         long page = Math.max(request.getPage(), 1);
         long size = Math.max(1, Math.min(request.getSize(), 100));
-        String cacheKey = problemListCacheKey(request, page, size);
-        if (redisCache == null) return loadProblemList(request, page, size);
-        return redisCache.getOrLoad(cacheKey, PROBLEM_PAGE_TYPE, PUBLIC_LIST_CACHE_TTL,
-                () -> loadProblemList(request, page, size));
+        // Cache only the popular unfiltered first page. A database revision is updated in the
+        // same transaction as every problem write, including imports and account merges.
+        if (redisCache == null || jdbc == null || page != 1 || size != 20 || request.getPlatform() != null
+                || request.getDifficulty() != null || request.getKeyword() != null || request.getCreatorUserId() != null)
+            return loadProblemList(request, page, size);
+        try {
+            Long revision = jdbc.queryForObject("SELECT revision FROM problem_cache_revision WHERE id=1", Long.class);
+            if (revision == null) return loadProblemList(request, page, size);
+            String key = problemListCacheKey(request, page, size) + ":revision:" + revision;
+            return redisCache.getOrLoad(key, PROBLEM_PAGE_TYPE, PUBLIC_LIST_CACHE_TTL, () -> loadProblemList(request, page, size));
+        } catch (org.springframework.dao.DataAccessException ex) {
+            return loadProblemList(request, page, size);
+        }
     }
 
     private PageResponse<ProblemSummaryResponse> loadProblemList(ProblemQueryRequest request, long page, long size) {
@@ -143,7 +151,7 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
 
         java.util.Map<Long, AppUser> creatorMap = batchLoadCreators(result.getRecords());
         List<ProblemSummaryResponse> records = result.getRecords().stream()
-                .map(p -> toSummaryResponse(p, creatorMap.get(p.getCreatorUserId())))
+                .map(p -> toSummaryResponse(p, p.getCreatorUserId() == null ? null : creatorMap.get(p.getCreatorUserId())))
                 .toList();
 
         return new PageResponse<>(

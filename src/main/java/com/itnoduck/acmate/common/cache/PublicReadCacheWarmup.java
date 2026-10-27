@@ -46,7 +46,7 @@ public class PublicReadCacheWarmup {
         this.problemMapper = problemMapper;
     }
 
-    @EventListener(ApplicationReadyEvent.class)
+    // Broad cache and Bloom prewarming disabled; public reads use MySQL.
     public void warmPublicReadCache() {
         if (!redisCache.isAvailable()) {
             log.warn("Redis is unavailable or authentication failed; public data will use MySQL until Redis is configured");

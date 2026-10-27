@@ -25,6 +25,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/auth")
 public class AlternativeLoginController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.itnoduck.acmate.security.ClientIpResolver clientIp;
     private final AlternativeLoginService login;
     private final GithubLoginService github;
     private final AccountSecurityService accounts;
@@ -41,12 +43,12 @@ public class AlternativeLoginController {
     @GetMapping("/methods")
     public Map<String, Boolean> methods(HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
-        return Map.of("email", login.emailAvailable(), "github", github.available());
+        return Map.of("email", login.emailAvailable(), "github", github.available(), "registration", login.registrationAvailable());
     }
 
     @PostMapping("/email/code")
     public Map<String, String> send(@Valid @RequestBody EmailRequest body, HttpServletRequest request) {
-        login.sendCode(body.email(), request.getRemoteAddr());
+        login.sendCode(body.email(), clientIp.resolve(request));
         return Map.of("message", "若验证码邮件成功送达，请查收；首次使用邮箱登录会自动注册账号");
     }
 

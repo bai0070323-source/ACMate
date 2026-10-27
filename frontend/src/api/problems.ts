@@ -51,6 +51,12 @@ export async function updateProblem(
   )
 }
 
+export interface ProblemReview { id:number; problem_id:number; author_user_id:number; original_content:string; proposed_content:string; status:string; reviewer_user_id:number|null; review_time:string|null; review_note:string|null; create_time:string }
+export const submitProblemReview = (id:number,data:UpdateProblemRequest) => withCsrf((h,t) => apiClient.post(`/problem-reviews/${id}`,data,{headers:{[h]:t}}))
+export const getProblemReviews = async (id:number):Promise<ProblemReview[]> => (await apiClient.get(`/problem-reviews/problem/${id}`)).data
+export const getPendingReviews = async ():Promise<ProblemReview[]> => (await apiClient.get('/problem-reviews/pending')).data
+export const decideProblemReview = (id:number,decision:'approve'|'reject',note:string) => withCsrf((h,t) => apiClient.post(`/problem-reviews/${id}/${decision}`,{note},{headers:{[h]:t}}))
+
 export async function getMyProblems(
   params: MyProblemQueryParams,
 ): Promise<PageResponse<MyProblemSummary>> {

@@ -1,5 +1,6 @@
 services:
   judge:
+    # 开发用途。向学生开放前必须部署到独立 VM 并完成 docs/上线安全要求.md 的隔离验收。
     build: .
     image: acmate-go-judge:1.13.3
     container_name: acmate-go-judge

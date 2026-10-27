@@ -99,7 +99,7 @@ public class NowcoderProfileSyncService {
                 for(String key:keys) {
                     reconcileFirstAc(user,key);
                     jdbc.update("UPDATE oj_submission s LEFT JOIN oj_first_ac f ON f.submission_id=s.id SET s.is_first_ac=IF(f.id IS NULL,0,1) WHERE s.user_id=? AND s.platform='NOWCODER' AND s.external_problem_key=?",user,key);
-                    Long local=findProblem(key);if(local!=null)linkProblem(key,local);
+                    Long local=findProblem(key);if(local!=null)linkProblem(key,local,user);
                 }
                 boolean complete=next>=page.totalPages();
                 jdbc.update("UPDATE nowcoder_sync_job SET status=?,next_page=?,total_pages=?,fetched_count=fetched_count+?,inserted_count=inserted_count+?,attempts=0,error_message=NULL,lease_token=NULL,lease_until=NULL,next_run_time=DATE_ADD(NOW(),INTERVAL 2 SECOND) WHERE id=? AND lease_token=?",complete?"COMPLETED":"QUEUED",next+1,page.totalPages(),page.submissions().size(),inserted,job.get("id"),job.get("lease_token"));
@@ -117,9 +117,10 @@ public class NowcoderProfileSyncService {
         else jdbc.update("INSERT INTO oj_first_ac(user_id,platform,external_problem_key,submission_id,create_time) VALUES(?,'NOWCODER',?,?,?) ON DUPLICATE KEY UPDATE submission_id=VALUES(submission_id),create_time=VALUES(create_time)",user,key,accepted.get(0).get("id"),accepted.get(0).get("submitted_time"));
     }
     /** Also backfills failed attempts and first AC after the asynchronously imported statement arrives. */
-    private void linkProblem(String key,long id) {
-        jdbc.update("UPDATE oj_submission SET problem_id=? WHERE platform='NOWCODER' AND external_problem_key=?",id,key);
-        jdbc.update("INSERT INTO user_problem_status(user_id,problem_id,status,attempt_count,first_submit_time,last_submit_time,first_ac_time,accepted_submission_id,solve_source) SELECT s.user_id,?,IF(MIN(f.submission_id) IS NULL,1,2),COUNT(*),MIN(s.submitted_time),MAX(s.submitted_time),MIN(CASE WHEN f.submission_id IS NOT NULL THEN s.submitted_time END),MIN(f.submission_id),'NOWCODER' FROM oj_submission s LEFT JOIN oj_first_ac f ON f.submission_id=s.id WHERE s.platform='NOWCODER' AND s.external_problem_key=? GROUP BY s.user_id ON DUPLICATE KEY UPDATE status=IF(solve_source='NOWCODER',VALUES(status),GREATEST(status,VALUES(status))),attempt_count=GREATEST(attempt_count,VALUES(attempt_count)),first_submit_time=COALESCE(LEAST(first_submit_time,VALUES(first_submit_time)),first_submit_time,VALUES(first_submit_time)),last_submit_time=COALESCE(GREATEST(last_submit_time,VALUES(last_submit_time)),VALUES(last_submit_time)),first_ac_time=IF(solve_source='NOWCODER',VALUES(first_ac_time),COALESCE(LEAST(first_ac_time,VALUES(first_ac_time)),first_ac_time,VALUES(first_ac_time))),accepted_submission_id=IF(solve_source='NOWCODER',VALUES(accepted_submission_id),COALESCE(VALUES(accepted_submission_id),accepted_submission_id)),solve_source=IF(VALUES(status)=2,'NOWCODER',solve_source)",id,key);
+    private void linkProblem(String key,long id,Long user) {
+        if(user==null) jdbc.update("UPDATE oj_submission SET problem_id=? WHERE platform='NOWCODER' AND external_problem_key=? AND (problem_id IS NULL OR problem_id<>?)",id,key,id);
+        else jdbc.update("UPDATE oj_submission SET problem_id=? WHERE platform='NOWCODER' AND external_problem_key=? AND user_id=? AND (problem_id IS NULL OR problem_id<>?)",id,key,user,id);
+        jdbc.update("INSERT INTO user_problem_status(user_id,problem_id,status,attempt_count,first_submit_time,last_submit_time,first_ac_time,accepted_submission_id,solve_source) SELECT s.user_id,?,IF(MIN(f.submission_id) IS NULL,1,2),COUNT(*),MIN(s.submitted_time),MAX(s.submitted_time),MIN(CASE WHEN f.submission_id IS NOT NULL THEN s.submitted_time END),MIN(f.submission_id),'NOWCODER' FROM oj_submission s LEFT JOIN oj_first_ac f ON f.submission_id=s.id WHERE s.platform='NOWCODER' AND s.external_problem_key=?"+(user==null?"":" AND s.user_id=?")+" GROUP BY s.user_id ON DUPLICATE KEY UPDATE status=IF(solve_source='NOWCODER',VALUES(status),GREATEST(status,VALUES(status))),attempt_count=GREATEST(attempt_count,VALUES(attempt_count)),first_submit_time=COALESCE(LEAST(first_submit_time,VALUES(first_submit_time)),first_submit_time,VALUES(first_submit_time)),last_submit_time=COALESCE(GREATEST(last_submit_time,VALUES(last_submit_time)),VALUES(last_submit_time)),accepted_submission_id=IF(solve_source='NOWCODER' OR (VALUES(first_ac_time) IS NOT NULL AND (first_ac_time IS NULL OR VALUES(first_ac_time)<first_ac_time)),VALUES(accepted_submission_id),accepted_submission_id),solve_source=IF(VALUES(first_ac_time) IS NOT NULL AND (solve_source='NOWCODER' OR first_ac_time IS NULL OR VALUES(first_ac_time)<first_ac_time),'NOWCODER',solve_source),first_ac_time=IF(solve_source='NOWCODER',VALUES(first_ac_time),COALESCE(LEAST(first_ac_time,VALUES(first_ac_time)),first_ac_time,VALUES(first_ac_time)))",user==null ? new Object[]{id,key} : new Object[]{id,key,user});
     }
     public void processImport() {
         var job=claim("nowcoder_problem_import_job");if(job==null)return;
@@ -132,9 +133,9 @@ public class NowcoderProfileSyncService {
             if(imported!=null&&!key.equals(imported.externalProblemKey()))throw new BusinessException(422,"牛客题号与题面不一致，已停止导入");
             tx.executeWithoutResult(status->{
                 if(!lockJob("nowcoder_problem_import_job",job))return;
-                if(imported!=null)jdbc.update("INSERT IGNORE INTO problem(platform,external_problem_key,title,source_url,difficulty,tags,content_md,creator_user_id,status) VALUES('NOWCODER',?,?,?,?,?,?,?,1)",key,imported.title(),imported.sourceUrl(),imported.difficulty(),imported.tags(),imported.contentMd(),owners.get(0));
+                if(imported!=null)jdbc.update("INSERT IGNORE INTO problem(platform,external_problem_key,title,source_url,difficulty,tags,content_md,creator_user_id,status) VALUES('NOWCODER',?,?,?,?,?,?,NULL,1)",key,imported.title(),imported.sourceUrl(),imported.difficulty(),imported.tags(),imported.contentMd());
                 Long id=findProblem(key);if(id==null)throw new IllegalStateException("Problem insert was not persisted");
-                linkProblem(key,id);
+                linkProblem(key,id,null);
                 jdbc.update("UPDATE nowcoder_problem_import_job SET status='COMPLETED',problem_id=?,error_message=NULL,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?",id,job.get("id"),job.get("lease_token"));
             });
         }catch(Exception ex){fail("nowcoder_problem_import_job",job,ex);}

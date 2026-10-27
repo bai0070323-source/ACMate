@@ -6,7 +6,7 @@ export interface ProblemSummary {
   sourceUrl: string | null
   difficulty: string | null
   tags: string | null
-  creatorUserId: number
+  creatorUserId: number | null
   creatorUsername: string | null
   creatorNickname: string | null
   createTime: string
@@ -22,7 +22,7 @@ export interface ProblemDetail {
   difficulty: string | null
   tags: string | null
   contentMd: string | null
-  creatorUserId: number
+  creatorUserId: number | null
   creatorUsername: string | null
   creatorNickname: string | null
   active: boolean
@@ -100,7 +100,7 @@ export interface AdminProblemSummary {
   deactivationReason: string | null
   deactivatedBy: number | null
   deactivationTime: string | null
-  creatorUserId: number
+  creatorUserId: number | null
   creatorUsername: string | null
   creatorNickname: string | null
   createTime: string

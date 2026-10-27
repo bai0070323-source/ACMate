@@ -28,6 +28,7 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
     @Override
     @org.springframework.transaction.annotation.Transactional
     public RegisterResponse register(RegisterRequest request) {
+        if (!emailLogin.emailAvailable()) throw new BusinessException(503, "注册暂未开放：邮箱验证服务未启用");
         String username = request.getUsername();
         String nickname = request.getNickname();
         String email = request.getEmail() == null ? null : request.getEmail().strip().toLowerCase(java.util.Locale.ROOT);

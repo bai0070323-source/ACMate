@@ -37,11 +37,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     @Override
     public List<Map<String, Object>> getLeaderboard(String period, Long currentUserId, int page, int size) {
-        String cacheKey = "acmate:cache:leaderboard:v1:" + normalizedPeriod(period) + ":" + page + ":" + size;
-        List<Map<String, Object>> baseRows = redisCache == null
-                ? loadLeaderboard(period, page, size)
-                : redisCache.getOrLoad(cacheKey, LEADERBOARD_TYPE, CACHE_TTL,
-                        () -> loadLeaderboard(period, page, size));
+        List<Map<String, Object>> baseRows = loadLeaderboard(period, page, size);
         return markCurrentUser(baseRows, currentUserId);
     }
 
@@ -61,12 +57,6 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     @Override
     public long countLeaderboard(String period) {
-        String cacheKey = "acmate:cache:leaderboard-count:v1:" + normalizedPeriod(period);
-        if (redisCache != null) {
-            Long cached = redisCache.getOrLoad(cacheKey, LEADERBOARD_COUNT_TYPE, CACHE_TTL,
-                    () -> loadLeaderboardCount(period));
-            return cached;
-        }
         return loadLeaderboardCount(period);
     }
 

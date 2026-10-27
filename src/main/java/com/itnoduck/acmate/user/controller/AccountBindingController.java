@@ -18,6 +18,8 @@ import java.util.Objects;
 
 @RestController
 public class AccountBindingController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.itnoduck.acmate.security.ClientIpResolver clientIp;
     private final AlternativeLoginService email;
     private final GithubLoginService github;
     private final AlternativeLoginController oauth;
@@ -41,14 +43,14 @@ public class AccountBindingController {
 
     @PostMapping("/api/auth/register/code")
     public Map<String,String> registrationCode(@Valid @RequestBody AlternativeLoginController.EmailRequest body,HttpServletRequest request) {
-        email.sendCode(body.email(),request.getRemoteAddr(),"REGISTER");
+        email.sendCode(body.email(),clientIp.resolve(request),"REGISTER");
         return Map.of("message","注册验证码已发送，请查收邮箱");
     }
 
     @PostMapping("/api/auth/password/code")
     public Map<String,String> passwordCode(@Valid @RequestBody AlternativeLoginController.EmailRequest body,HttpServletRequest request) {
         // Same outward response for registered and unregistered addresses.
-        email.sendCode(body.email(),request.getRemoteAddr(),"RESET");
+        email.sendCode(body.email(),clientIp.resolve(request),"RESET");
         return Map.of("message","验证码已发送；请使用已绑定账号的邮箱重置密码");
     }
 
@@ -81,7 +83,7 @@ public class AccountBindingController {
         var current=accounts.active(user.getId());
         String address=body.current() ? current.getEmail() : body.email();
         if(address == null) throw new BusinessException(400,"尚未绑定邮箱");
-        email.sendCode(address,request.getRemoteAddr(),(body.current()?"CURRENT:":"BIND:")+user.getId());
+        email.sendCode(address,clientIp.resolve(request),(body.current()?"CURRENT:":"BIND:")+user.getId());
         return Map.of("message","验证码已发送，请查收邮箱");
     }
 
@@ -169,7 +171,7 @@ public class AccountBindingController {
     @PostMapping("/api/auth/github/link/code")
     public Map<String,String> loginLinkCode(HttpServletRequest request) {
         var pending=loginPending(request);
-        email.sendCode(pending.email(),request.getRemoteAddr(),"LINK:"+pending.profile().id());
+        email.sendCode(pending.email(),clientIp.resolve(request),"LINK:"+pending.profile().id());
         return Map.of("message","验证码已发送到已有邮箱账号");
     }
 

@@ -76,6 +76,32 @@ class AccountMergeDatabaseTest {
         } finally { source.destroy(); }
     }
     long value(String sql) { return jdbc.queryForObject(sql,Long.class); }
+    @Test void problemWritesInvalidateCachedVersionOnlyOnCommit() {
+        long before=value("SELECT revision FROM problem_cache_revision WHERE id=1");
+        transaction.executeWithoutResult(status->jdbc.update("UPDATE problem SET title='changed' WHERE id=1"));
+        assertEquals(before+1,value("SELECT revision FROM problem_cache_revision WHERE id=1"));
+        transaction.executeWithoutResult(status->{jdbc.update("UPDATE problem SET title='rollback' WHERE id=1");status.setRollbackOnly();});
+        assertEquals(before+1,value("SELECT revision FROM problem_cache_revision WHERE id=1"));
+    }
+    @Test void publicProblemSuggestionRequiresAdminApprovalAndPreservesHistory() {
+        jdbc.update("UPDATE problem SET platform='NOWCODER',external_problem_key='NC42' WHERE id=1");
+        var problem=new com.itnoduck.acmate.problem.entity.Problem();problem.setId(1L);problem.setPlatform("NOWCODER");problem.setExternalProblemKey("NC42");problem.setTitle("Test Problem");problem.setUpdateTime(jdbc.queryForObject("SELECT update_time FROM problem WHERE id=1",java.sql.Timestamp.class).toLocalDateTime());
+        var mapper=mock(com.itnoduck.acmate.problem.mapper.ProblemMapper.class);when(mapper.selectById(1L)).thenReturn(problem);
+        var command=mock(com.itnoduck.acmate.problem.service.ProblemCommandService.class);
+        when(command.updateProblem(eq(1L),any(),eq(2L),eq(true))).thenAnswer(inv->{jdbc.update("UPDATE problem SET title=? WHERE id=1",((com.itnoduck.acmate.problem.dto.UpdateProblemRequest)inv.getArgument(1)).getTitle());return null;});
+        var controller=new com.itnoduck.acmate.problem.controller.ProblemReviewController(jdbc,mapper,command,new tools.jackson.databind.ObjectMapper());
+        var member=new com.itnoduck.acmate.security.AuthenticatedUser(1L,"member","hash","Member",null,null,null,false,true,List.of());
+        var admin=new com.itnoduck.acmate.security.AuthenticatedUser(2L,"admin","hash","Admin",null,null,null,true,true,List.of());
+        var request=new com.itnoduck.acmate.problem.dto.UpdateProblemRequest();request.setPlatform("NOWCODER");request.setExternalProblemKey("NC42");request.setTitle("New Title");
+        transaction.executeWithoutResult(status->controller.propose(1,request,member));
+        assertEquals("Test Problem",jdbc.queryForObject("SELECT title FROM problem WHERE id=1",String.class));
+        assertThrows(BusinessException.class,()->controller.approve(1,new com.itnoduck.acmate.problem.controller.ProblemReviewController.Decision(null),member));
+        transaction.executeWithoutResult(status->controller.approve(1,new com.itnoduck.acmate.problem.controller.ProblemReviewController.Decision("OK"),admin));
+        assertEquals("New Title",jdbc.queryForObject("SELECT title FROM problem WHERE id=1",String.class));
+        assertEquals("APPROVED",jdbc.queryForObject("SELECT status FROM problem_change_request WHERE id=1",String.class));
+        assertEquals(2,value("SELECT reviewer_user_id FROM problem_change_request WHERE id=1"));
+        assertTrue(jdbc.queryForObject("SELECT original_content FROM problem_change_request WHERE id=1",String.class).contains("Test Problem"));
+    }
     @Test void migrationBackfillsBothProvidersAndKeepsLegacyData() {
         assertEquals(1,value("SELECT user_id FROM user_login_identity WHERE provider='GITHUB' AND identifier='123'"));
         assertEquals(2,value("SELECT user_id FROM user_login_identity WHERE provider='EMAIL' AND identifier='mail@example.com'"));

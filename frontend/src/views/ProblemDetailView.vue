@@ -11,6 +11,7 @@ import MarkdownContent from '@/components/common/MarkdownContent.vue'
 import ConstraintFormula from '@/components/common/ConstraintFormula.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import NowcoderPracticePanel from '@/components/problem/NowcoderPracticePanel.vue'
+import ProblemReviews from '@/components/problem/ProblemReviews.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 
 const route = useRoute()
@@ -38,19 +39,19 @@ const isCreator = computed(() => {
 
 const canEdit = computed(() => {
   if (!problem.value || !auth.user) return false
-  return auth.isAdmin || isCreator.value
+  return auth.isAdmin || (isCreator.value && problem.value.platform === 'CUSTOM')
 })
 
 const canDeactivate = computed(() => {
   if (!problem.value || !auth.user) return false
-  return (isCreator.value || auth.isAdmin) && problem.value.active
+  return (auth.isAdmin || (isCreator.value && problem.value.platform === 'CUSTOM')) && problem.value.active
 })
 
 const canRestore = computed(() => {
   if (!problem.value || !auth.user) return false
   if (problem.value.active) return false
   if (isCreator.value && problem.value.deactivationSource === 'ADMIN') return false
-  return isCreator.value || auth.isAdmin
+  return auth.isAdmin || (isCreator.value && problem.value.platform === 'CUSTOM')
 })
 
 const isInactive = computed(() => {
@@ -164,8 +165,10 @@ onMounted(fetchDetail)
             </template>
             <button v-if="canRestore" class="restore-btn" @click="handleRestore" :disabled="actionLoading">恢复</button>
             <button v-if="canEdit" class="edit-btn" @click="goToEdit">编辑</button>
+            <button v-else-if="problem.active && problem.platform !== 'CUSTOM'" class="edit-btn" @click="goToEdit">提出修改建议</button>
           </div>
         </div>
+        <p v-if="route.query.review === 'submitted'" role="status">修改建议已提交，等待管理员审核。</p>
 
         <div v-if="showDeactivateDialog" class="deactivate-dialog">
           <template v-if="isCreator">
@@ -266,6 +269,7 @@ onMounted(fetchDetail)
       <p>你没有权限查看该题目。</p>
       <button class="status-btn" @click="router.push({ name: 'problems' })">返回题库</button>
     </div>
+    <ProblemReviews v-if="problem && problem.platform !== 'CUSTOM'" :problem-id="problemId" />
   </PageContainer>
 </template>
 

@@ -30,6 +30,7 @@ class NowcoderTrainingDatabaseTest {
   try(var files=java.nio.file.Files.list(java.nio.file.Path.of("src/main/resources/db/migration"))){for(var file:files.filter(p->p.toString().endsWith(".sql")).sorted(Comparator.comparingInt(p->Integer.parseInt(p.getFileName().toString().split("__")[0].substring(1)))).toList()){String sql=java.nio.file.Files.readString(file).replace("\ufeff","");for(String statement:sql.split(";"))if(!statement.isBlank())jdbc.execute(statement);}}
   jdbc.update("INSERT INTO app_user(id,username,password_hash,nickname) VALUES(1,'member','hash','Member'),(2,'other','hash','Other')");
   jdbc.update("INSERT INTO oj_account(id,user_id,platform,external_user_id,verify_status) VALUES(1,1,'NOWCODER','123',1),(2,1,'CODEFORCES','testcf',1)");
+  jdbc.update("INSERT INTO nowcoder_account_owner(uid,user_id) VALUES('123',1)");
   jdbc.update("INSERT INTO problem(id,platform,external_problem_key,title,source_url,creator_user_id) VALUES(1,'NOWCODER','NC212955','Test','https://ac.nowcoder.com/acm/contest/19304/A',1)");
   problems=mock(ProblemMapper.class);var p=new Problem();p.setId(1L);p.setStatus(1);p.setPlatform("NOWCODER");p.setExternalProblemKey("NC212955");p.setSourceUrl("https://ac.nowcoder.com/acm/contest/19304/A");when(problems.selectById(1L)).thenReturn(p);
   client=mock(NowcoderPublicClient.class);service=new NowcoderTrainingService(jdbc,problems,new NowcoderProblemImportService(new ObjectMapper()),client,new DataSourceTransactionManager(source));
@@ -54,6 +55,20 @@ class NowcoderTrainingDatabaseTest {
    assertEquals(1,((Number)stats.get("solved_count")).longValue());
    assertEquals(1,mapper.countLeaderboardUsersAll());
   }
+ }
+ @Test void earliestAcceptedSubmissionRemainsPairedAcrossOutOfOrderSync(){
+  var old=LocalDateTime.of(2025,1,1,12,0); var newer=old.plusDays(1);
+  when(client.submissions(19304,123,212955)).thenReturn(List.of(new NowcoderPublicClient.OfficialSubmission(101,123,212955,"OK","C++",newer),new NowcoderPublicClient.OfficialSubmission(100,123,212955,"OK","C++",old)));
+  service.sync(1,1);
+  assertEquals(count("SELECT id FROM oj_submission WHERE remote_submission_id='100'"),count("SELECT accepted_submission_id FROM user_problem_status WHERE user_id=1 AND problem_id=1"));
+  assertEquals(jdbc.queryForObject("SELECT submitted_time FROM oj_submission WHERE remote_submission_id='100'",java.sql.Timestamp.class),jdbc.queryForObject("SELECT first_ac_time FROM user_problem_status WHERE user_id=1 AND problem_id=1",java.sql.Timestamp.class));
+ }
+ @Test void unbindingDoesNotAllowAnotherAccountToClaimUid(){
+  service.unbind(1);
+  var tx=new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(source));
+  assertEquals(409,assertThrows(BusinessException.class,()->tx.executeWithoutResult(status->service.bind(2,"123"))).getCode());
+  assertEquals(0,count("SELECT COUNT(*) FROM oj_account WHERE user_id=2 AND platform='NOWCODER'"));
+  tx.executeWithoutResult(status->service.bind(1,"123"));assertTrue(service.account(1).hasAccount());
  }
  @Test void unverifiedAccountsCannotImportOfficialResults(){
   jdbc.update("UPDATE oj_account SET verify_status=0 WHERE id=1");assertEquals(409,assertThrows(BusinessException.class,()->service.sync(1,1)).getCode());verifyNoInteractions(client);assertEquals(0,count("SELECT COUNT(*) FROM oj_submission"));

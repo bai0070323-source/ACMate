@@ -25,9 +25,11 @@ public class AccountMergeService {
     @Transactional
     public void merge(long source, long target) {
         if (source == target) return;
-        var locked = jdbc.queryForList("SELECT id,status,email FROM app_user WHERE id IN (?,?) ORDER BY id FOR UPDATE", source, target);
+        var locked = jdbc.queryForList("SELECT id,status,email,is_admin FROM app_user WHERE id IN (?,?) ORDER BY id FOR UPDATE", source, target);
         if (locked.size() != 2 || locked.stream().anyMatch(row -> ((Number) row.get("status")).intValue() != 1))
             throw new BusinessException(409, "账号状态已变化，请重新验证后绑定");
+        if (locked.stream().anyMatch(row -> Boolean.TRUE.equals(row.get("is_admin")) || (row.get("is_admin") instanceof Number n && n.intValue() != 0)))
+            throw new BusinessException(403, "涉及管理员账号的合并请联系管理员处理");
         // Never silently discard an existing GitHub, mailbox, WeChat, or OJ identity.
         if (count("SELECT COUNT(*) FROM user_login_identity a JOIN user_login_identity b ON a.provider=b.provider AND a.identifier<>b.identifier WHERE a.user_id=? AND b.user_id=?", source, target) > 0
                 || count("SELECT COUNT(*) FROM user_wechat a JOIN user_wechat b ON a.user_id=? AND b.user_id=?", source, target) > 0
@@ -71,9 +73,10 @@ public class AccountMergeService {
         jdbc.update("UPDATE oj_submission s LEFT JOIN oj_first_ac f ON f.submission_id=s.id AND f.user_id=? SET s.is_first_ac=IF(f.id IS NULL,0,1) WHERE s.user_id=?", target, target);
         for (String table : java.util.List.of("oj_account", "user_wechat"))
             jdbc.update("UPDATE " + table + " SET user_id=? WHERE user_id=?", target, source);
+        jdbc.update("UPDATE nowcoder_account_owner SET user_id=? WHERE user_id=?",target,source);
         // A leased worker must not persist with the pre-merge user ID.
         jdbc.update("UPDATE nowcoder_sync_job SET user_id=?,status=IF(status='RUNNING','QUEUED',status),lease_token=NULL,lease_until=NULL WHERE user_id=?",target,source);
-        jdbc.update("INSERT IGNORE INTO user_editor_setting(user_id,autocomplete) SELECT ?,autocomplete FROM user_editor_setting WHERE user_id=?",target,source);
+        jdbc.update("INSERT IGNORE INTO user_editor_setting(user_id,autocomplete,preferred_language) SELECT ?,autocomplete,preferred_language FROM user_editor_setting WHERE user_id=?",target,source);
         jdbc.update("DELETE FROM user_editor_setting WHERE user_id=?",source);
 
         // One identity per provider: duplicate identities must never silently overwrite a binding.
@@ -83,7 +86,7 @@ public class AccountMergeService {
         jdbc.update("UPDATE app_user SET email=NULL WHERE id=?", source);
         if (sourceEmail != null) jdbc.update("UPDATE app_user SET email=COALESCE(email,?) WHERE id=?", sourceEmail, target);
 
-        jdbc.update("UPDATE app_user t JOIN app_user s ON s.id=? SET t.is_admin=GREATEST(t.is_admin,s.is_admin),t.avatar_url=COALESCE(NULLIF(t.avatar_url,''),s.avatar_url),t.location=COALESCE(t.location,s.location),t.gender=COALESCE(t.gender,s.gender) WHERE t.id=?", source, target);
+        jdbc.update("UPDATE app_user t JOIN app_user s ON s.id=? SET t.avatar_url=COALESCE(NULLIF(t.avatar_url,''),s.avatar_url),t.location=COALESCE(t.location,s.location),t.gender=COALESCE(t.gender,s.gender) WHERE t.id=?", source, target);
         jdbc.update("UPDATE app_user SET status=0,merged_into_user_id=? WHERE id=? AND status=1", target, source);
         jdbc.update("INSERT INTO account_merge_log(source_user_id,target_user_id) VALUES(?,?)", source, target);
         afterCommit(() -> { expireSessions(source); expireSessions(target); invalidateReadCaches(); });

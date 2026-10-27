@@ -18,7 +18,7 @@ public class UserSocialService {
 
     public Summary summary(long userId,Long viewer) {
         requireUser(userId);
-        String region=jdbc.queryForObject("SELECT last_login_region FROM app_user WHERE id=?",String.class,userId);
+        String region=viewer != null && viewer == userId ? jdbc.queryForObject("SELECT last_login_region FROM app_user WHERE id=?",String.class,userId) : null;
         var yesterday=LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).minusDays(1);
         var today=yesterday.plusDays(1);
         return new Summary(count("SELECT COUNT(*) FROM user_follow WHERE follower_id=?",userId),

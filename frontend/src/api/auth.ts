@@ -34,7 +34,7 @@ export async function login(data: LoginRequest): Promise<UserInfo> {
   return response.data
 }
 
-export async function getLoginMethods(): Promise<{ email: boolean; github: boolean }> {
+export async function getLoginMethods(): Promise<{ email: boolean; github: boolean; registration: boolean }> {
   return (await apiClient.get('/auth/methods')).data
 }
 

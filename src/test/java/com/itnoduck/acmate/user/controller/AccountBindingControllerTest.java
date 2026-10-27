@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(AccountBindingController.class)
-@Import({SecurityConfig.class,GlobalExceptionHandler.class})
+@Import({SecurityConfig.class,GlobalExceptionHandler.class,com.itnoduck.acmate.security.ClientIpResolver.class})
 class AccountBindingControllerTest {
     @Test void changingPasswordRequiresAuthenticationAndCsrf() throws Exception {
         String body="{\"currentPassword\":\"old-password\",\"newPassword\":\"new-password\",\"confirmPassword\":\"new-password\"}";

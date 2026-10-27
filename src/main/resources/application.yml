@@ -1,5 +1,6 @@
 server:
   port: 8080
+  forward-headers-strategy: none
   servlet:
     session:
       timeout: 1h
@@ -58,6 +59,7 @@ mybatis-plus:
       id-type: auto
 
 acmate:
+  trusted-proxies: ${TRUSTED_PROXY_IPS:}
   login:
     email-enabled: ${LOGIN_EMAIL_ENABLED:false}
     mail-from: ${MAIL_FROM:}

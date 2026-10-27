@@ -74,6 +74,12 @@ public class AlternativeLoginService {
         return properties.isEmailEnabled() && !properties.getMailFrom().isBlank() && mail.getIfAvailable() != null;
     }
 
+    public boolean registrationAvailable() {
+        if (!emailAvailable()) return false;
+        try (var connection = redis.getConnectionFactory().getConnection()) { return "PONG".equalsIgnoreCase(connection.ping()); }
+        catch (Exception ignored) { return false; }
+    }
+
     public void sendCode(String address, String ip) {
         sendCode(address, ip, "LOGIN");
     }

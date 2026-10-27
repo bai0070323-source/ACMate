@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import java.lang.reflect.Method;
 @Configuration(proxyBeanMethods=false)
 public class LoginActivityConfiguration {
-    @Bean public DefaultPointcutAdvisor loginActivityAdvisor(LoginActivityService activity) {
+    @Bean public DefaultPointcutAdvisor loginActivityAdvisor(LoginActivityService activity, com.itnoduck.acmate.security.ClientIpResolver clientIp) {
         var pointcut=new StaticMethodMatcherPointcut() {
             @Override public boolean matches(Method method,Class<?> target) {
                 return (method.getName().equals("signIn")||method.getName().equals("emailLogin"))&&AlternativeLoginService.class.isAssignableFrom(target)
@@ -22,7 +22,7 @@ public class LoginActivityConfiguration {
         return new DefaultPointcutAdvisor(pointcut,(MethodInterceptor) invocation->{
             Object result=invocation.proceed();
             if(result instanceof LoginResponse user) for(Object argument:invocation.getArguments()) if(argument instanceof HttpServletRequest request) {
-                try {activity.record(user.id(),request.getRemoteAddr());}
+                try {activity.record(user.id(),clientIp.resolve(request));}
                 catch(RuntimeException ignored) { /* Recording must not make authentication unavailable. */ }
                 break;
             }
