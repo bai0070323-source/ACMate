@@ -95,6 +95,7 @@ class LogoutTest {
     void shouldReturn204WhenLogoutWithCsrf() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -113,6 +114,7 @@ class LogoutTest {
     void shouldInvalidateSessionAfterLogout() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -133,6 +135,7 @@ class LogoutTest {
     void shouldReturn401OnMeAfterLogout() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -160,6 +163,7 @@ class LogoutTest {
     void shouldClearSecurityContextAfterLogout() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -190,6 +194,7 @@ class LogoutTest {
     void shouldHaveEmptyResponseBodyOnLogout() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -214,6 +219,7 @@ class LogoutTest {
 
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -259,6 +265,7 @@ class LogoutTest {
     void shouldLogoutWithRealCsrfToken() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -286,6 +293,7 @@ class LogoutTest {
     void shouldReturn403WithWrongCsrfToken() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -312,6 +320,7 @@ class LogoutTest {
     void shouldLogoutAndThenMeReturns401WithRealCsrfFlow() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -344,3 +353,4 @@ class LogoutTest {
                 .andExpect(jsonPath("$.code").value(401));
     }
 }
+

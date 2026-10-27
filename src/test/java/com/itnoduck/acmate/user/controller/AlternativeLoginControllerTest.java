@@ -24,6 +24,7 @@ class AlternativeLoginControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean AlternativeLoginService login;
     @MockitoBean GithubLoginService github;
+    @MockitoBean com.itnoduck.acmate.user.service.AccountSecurityService accounts;
     @MockitoBean DatabaseUserDetailsService details;
 
     @Test void methodsArePublicAndDoNotExposeSecrets() throws Exception {

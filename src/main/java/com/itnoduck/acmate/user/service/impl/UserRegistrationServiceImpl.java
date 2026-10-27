@@ -7,6 +7,7 @@ import com.itnoduck.acmate.user.dto.RegisterResponse;
 import com.itnoduck.acmate.user.entity.AppUser;
 import com.itnoduck.acmate.user.mapper.AppUserMapper;
 import com.itnoduck.acmate.user.service.UserRegistrationService;
+import com.itnoduck.acmate.user.service.AlternativeLoginService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,18 +17,22 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
 
     private final AppUserMapper appUserMapper;
     private final PasswordEncoder passwordEncoder;
+    private final AlternativeLoginService emailLogin;
 
-    public UserRegistrationServiceImpl(AppUserMapper appUserMapper, PasswordEncoder passwordEncoder) {
+    public UserRegistrationServiceImpl(AppUserMapper appUserMapper, PasswordEncoder passwordEncoder, AlternativeLoginService emailLogin) {
         this.appUserMapper = appUserMapper;
         this.passwordEncoder = passwordEncoder;
+        this.emailLogin = emailLogin;
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public RegisterResponse register(RegisterRequest request) {
         String username = request.getUsername();
         String nickname = request.getNickname();
-        String email = request.getEmail();
+        String email = request.getEmail() == null ? null : request.getEmail().strip().toLowerCase(java.util.Locale.ROOT);
         String rawPassword = request.getPassword();
+        if (email == null || email.isBlank()) throw new BusinessException(400, "邮箱不能为空");
 
         if (appUserMapper.selectCount(new LambdaQueryWrapper<AppUser>()
                 .eq(AppUser::getUsername, username)) > 0) {
@@ -37,11 +42,11 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
                 .eq(AppUser::getNickname, nickname)) > 0) {
             throw new BusinessException(409, "该昵称已被使用，请更换其他昵称。");
         }
-        if (email != null && appUserMapper.selectCount(new LambdaQueryWrapper<AppUser>()
-                .eq(AppUser::getEmail, email)) > 0) {
+        if (appUserMapper.findByLoginEmail(email) != null) {
             throw new BusinessException(409, "邮箱已被使用");
         }
 
+        emailLogin.verifyCode(email, request.getEmailCode(), "REGISTER");
         AppUser user = new AppUser();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
@@ -63,6 +68,7 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
             throw new BusinessException(409, "用户名或邮箱已被使用");
         }
 
+        appUserMapper.insertLoginEmail(user.getId(), email);
         return new RegisterResponse(user.getId(), user.getUsername(), user.getNickname(), user.getEmail());
     }
 }

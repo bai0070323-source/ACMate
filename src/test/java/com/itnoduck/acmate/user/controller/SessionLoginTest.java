@@ -87,6 +87,7 @@ class SessionLoginTest {
     void shouldReturn200OnCorrectCredentials() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -98,6 +99,7 @@ class SessionLoginTest {
     void shouldNotReturnPasswordHashInResponse() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,6 +112,7 @@ class SessionLoginTest {
     void shouldReturn401OnWrongPassword() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -133,6 +136,7 @@ class SessionLoginTest {
     void shouldReturn403WhenUserDisabled() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 0);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -145,6 +149,7 @@ class SessionLoginTest {
     void shouldAllowLoginPostWithoutCsrf() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -156,6 +161,7 @@ class SessionLoginTest {
     void shouldStoreSecurityContextInSessionAfterLogin() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -171,6 +177,7 @@ class SessionLoginTest {
     void shouldAllowMeWithSameSessionAfterLogin() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -189,6 +196,7 @@ class SessionLoginTest {
     void shouldReturnCorrectUserFieldsOnMe() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -223,6 +231,7 @@ class SessionLoginTest {
     void shouldHaveAuthenticatedUserAsPrincipalInSession() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -244,6 +253,7 @@ class SessionLoginTest {
     void shouldReturnAdminTrueForAdminUser() throws Exception {
         AppUser user = buildAppUser(2L, "adminuser", "admin@example.com", 1, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login")
@@ -295,6 +305,7 @@ class SessionLoginTest {
     void shouldReturn401ForWrongPassword() throws Exception {
         AppUser user = buildAppUser(1L, "testuser", "test@example.com", 0, 1);
         when(appUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(appUserMapper.selectById(user.getId())).thenReturn(user);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -316,3 +327,4 @@ class SessionLoginTest {
                 .andExpect(jsonPath("$.message").value("用户名或密码错误"));
     }
 }
+

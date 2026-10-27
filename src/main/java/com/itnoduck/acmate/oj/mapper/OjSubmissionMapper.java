@@ -15,7 +15,7 @@ public interface OjSubmissionMapper extends BaseMapper<OjSubmission> {
     @Select("SELECT f.user_id, COUNT(*) AS solved_count, MAX(s.submitted_time) AS last_accepted_time " +
         "FROM oj_first_ac f " +
         "INNER JOIN oj_submission s ON f.submission_id = s.id " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "INNER JOIN app_user u ON f.user_id = u.id AND u.status = 1 " +
         "WHERE s.submitted_time >= #{cutoff} " +
         "GROUP BY f.user_id " +
@@ -28,7 +28,7 @@ public interface OjSubmissionMapper extends BaseMapper<OjSubmission> {
     @Select("SELECT COUNT(DISTINCT f.user_id) " +
         "FROM oj_first_ac f " +
         "INNER JOIN oj_submission s ON f.submission_id = s.id " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "INNER JOIN app_user u ON f.user_id = u.id AND u.status = 1 " +
         "WHERE s.submitted_time >= #{cutoff}")
     long countLeaderboardUsers(@Param("cutoff") java.time.LocalDateTime cutoff);
@@ -36,7 +36,7 @@ public interface OjSubmissionMapper extends BaseMapper<OjSubmission> {
     @Select("SELECT f.user_id, COUNT(*) AS solved_count, MAX(s.submitted_time) AS last_accepted_time " +
         "FROM oj_first_ac f " +
         "INNER JOIN oj_submission s ON f.submission_id = s.id " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "INNER JOIN app_user u ON f.user_id = u.id AND u.status = 1 " +
         "WHERE f.user_id = #{userId} " +
         "AND s.submitted_time >= #{cutoff} " +
@@ -46,7 +46,7 @@ public interface OjSubmissionMapper extends BaseMapper<OjSubmission> {
     @Select("SELECT f.user_id, COUNT(*) AS solved_count, MAX(s.submitted_time) AS last_accepted_time " +
         "FROM oj_first_ac f " +
         "INNER JOIN oj_submission s ON f.submission_id = s.id " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "INNER JOIN app_user u ON f.user_id = u.id AND u.status = 1 " +
         "GROUP BY f.user_id " +
         "ORDER BY solved_count DESC, last_accepted_time ASC, f.user_id ASC " +
@@ -55,14 +55,14 @@ public interface OjSubmissionMapper extends BaseMapper<OjSubmission> {
 
     @Select("SELECT COUNT(DISTINCT f.user_id) " +
         "FROM oj_first_ac f " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "INNER JOIN app_user u ON f.user_id = u.id AND u.status = 1")
     long countLeaderboardUsersAll();
 
     @Select("SELECT f.user_id, COUNT(*) AS solved_count, MAX(s.submitted_time) AS last_accepted_time " +
         "FROM oj_first_ac f " +
         "INNER JOIN oj_submission s ON f.submission_id = s.id " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "INNER JOIN app_user u ON f.user_id = u.id AND u.status = 1 " +
         "WHERE f.user_id = #{userId} " +
         "GROUP BY f.user_id")
@@ -75,7 +75,7 @@ public interface OjSubmissionMapper extends BaseMapper<OjSubmission> {
         "MAX(s.submitted_time) AS last_accepted_time " +
         "FROM oj_first_ac f " +
         "INNER JOIN oj_submission s ON f.submission_id = s.id " +
-        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = 'CODEFORCES' AND a.verify_status = 1 " +
+        "INNER JOIN oj_account a ON f.user_id = a.user_id AND a.platform = f.platform AND a.verify_status = 1 " +
         "WHERE f.user_id = #{userId}")
     Map<String, Object> getUserOjStats(@Param("userId") Long userId,
                                        @Param("cutoff30d") java.time.LocalDateTime cutoff30d,

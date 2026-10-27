@@ -2,6 +2,8 @@ package com.itnoduck.acmate.problem.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.itnoduck.acmate.common.cache.RedisIdBloomFilter;
+import com.itnoduck.acmate.common.cache.RedisJsonCache;
 import com.itnoduck.acmate.common.dto.PageResponse;
 import com.itnoduck.acmate.common.exception.BusinessException;
 import com.itnoduck.acmate.problem.dto.MineProblemStatusFilter;
@@ -15,8 +17,13 @@ import com.itnoduck.acmate.problem.mapper.ProblemMapper;
 import com.itnoduck.acmate.problem.service.ProblemQueryService;
 import com.itnoduck.acmate.user.entity.AppUser;
 import com.itnoduck.acmate.user.mapper.AppUserMapper;
+import com.itnoduck.acmate.training.mapper.UserProblemStatusMapper;
+import com.itnoduck.acmate.training.entity.UserProblemStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.type.TypeReference;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,15 +38,42 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
 
     private final ProblemMapper problemMapper;
     private final AppUserMapper appUserMapper;
+    private final RedisJsonCache redisCache;
+    private final RedisIdBloomFilter idBloomFilter;
+    private final UserProblemStatusMapper statusMapper;
+    private static final Duration PUBLIC_LIST_CACHE_TTL = Duration.ofSeconds(15);
+    private static final TypeReference<PageResponse<ProblemSummaryResponse>> PROBLEM_PAGE_TYPE = new TypeReference<>() {};
 
-    public ProblemQueryServiceImpl(ProblemMapper problemMapper, AppUserMapper appUserMapper) {
+    @Autowired
+    public ProblemQueryServiceImpl(ProblemMapper problemMapper, AppUserMapper appUserMapper,
+                                   RedisJsonCache redisCache, RedisIdBloomFilter idBloomFilter, UserProblemStatusMapper statusMapper) {
         this.problemMapper = problemMapper;
         this.appUserMapper = appUserMapper;
+        this.redisCache = redisCache;
+        this.idBloomFilter = idBloomFilter;
+        this.statusMapper = statusMapper;
+    }
+
+    public ProblemQueryServiceImpl(ProblemMapper problemMapper, AppUserMapper appUserMapper,
+                                  RedisJsonCache redisCache, RedisIdBloomFilter idBloomFilter) {
+        this(problemMapper, appUserMapper, redisCache, idBloomFilter, null);
+    }
+
+    public ProblemQueryServiceImpl(ProblemMapper problemMapper, AppUserMapper appUserMapper,
+                                   RedisJsonCache redisCache) {
+        this(problemMapper, appUserMapper, redisCache, null);
+    }
+
+    public ProblemQueryServiceImpl(ProblemMapper problemMapper, AppUserMapper appUserMapper) {
+        this(problemMapper, appUserMapper, null);
     }
 
     @Override
     public ProblemDetailResponse getProblem(long id, long viewerUserId, boolean viewerAdmin) {
         if (id <= 0) {
+            throw new BusinessException(404, "题目不存在");
+        }
+        if (idBloomFilter != null && !idBloomFilter.mightContain("problems", id)) {
             throw new BusinessException(404, "题目不存在");
         }
         Problem problem = problemMapper.selectOne(
@@ -61,11 +95,26 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
     public PageResponse<ProblemSummaryResponse> listProblems(ProblemQueryRequest request) {
         long page = Math.max(request.getPage(), 1);
         long size = Math.max(1, Math.min(request.getSize(), 100));
+        String cacheKey = problemListCacheKey(request, page, size);
+        if (redisCache == null) return loadProblemList(request, page, size);
+        return redisCache.getOrLoad(cacheKey, PROBLEM_PAGE_TYPE, PUBLIC_LIST_CACHE_TTL,
+                () -> loadProblemList(request, page, size));
+    }
 
+    private PageResponse<ProblemSummaryResponse> loadProblemList(ProblemQueryRequest request, long page, long size) {
+        return loadProblemList(request, page, size, null);
+    }
+
+    private PageResponse<ProblemSummaryResponse> loadProblemList(ProblemQueryRequest request, long page, long size, Long userId) {
         // 基础条件：只返回正常状态的题目
         // creatorUserId 用于按创建者筛选用户的公开题目，不影响 status=1 限制
         LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
                 .eq(Problem::getStatus, 1);
+
+        if (userId != null && request.getCompletion() != null) {
+            String predicate = "EXISTS (SELECT 1 FROM user_problem_status ups WHERE ups.problem_id = problem.id AND ups.user_id = {0} AND ups.status = 2)";
+            wrapper.apply((request.getCompletion().equals("UNSOLVED") ? "NOT " : "") + predicate, userId);
+        }
 
         if (request.getCreatorUserId() != null) {
             if (request.getCreatorUserId() <= 0) {
@@ -103,6 +152,30 @@ public class ProblemQueryServiceImpl implements ProblemQueryService {
                 result.getTotal(),
                 result.getPages(),
                 records);
+    }
+
+    @Override
+    public PageResponse<ProblemSummaryResponse> listProblemsForUser(ProblemQueryRequest request, long userId) {
+        if (userId <= 0) throw new BusinessException(400, "用户 ID 无效");
+        long page = Math.max(request.getPage(), 1), size = Math.max(1, Math.min(request.getSize(), 100));
+        var result = request.getCompletion() == null ? listProblems(request) : loadProblemList(request, page, size, userId);
+        var ids = result.records().stream().map(ProblemSummaryResponse::id).toList();
+        if (ids.isEmpty()) return result;
+        var solved = statusMapper.selectList(new LambdaQueryWrapper<UserProblemStatus>()
+                .select(UserProblemStatus::getProblemId).eq(UserProblemStatus::getUserId, userId)
+                .eq(UserProblemStatus::getStatus, 2).in(UserProblemStatus::getProblemId, ids)).stream()
+                .map(UserProblemStatus::getProblemId).collect(java.util.stream.Collectors.toSet());
+        var records = result.records().stream().map(p -> new ProblemSummaryResponse(p.id(),p.platform(),p.externalProblemKey(),p.title(),p.sourceUrl(),p.difficulty(),p.tags(),p.creatorUserId(),p.creatorUsername(),p.creatorNickname(),p.createTime(),solved.contains(p.id()))).toList();
+        return new PageResponse<>(result.page(),result.size(),result.total(),result.pages(),records);
+    }
+
+    private String problemListCacheKey(ProblemQueryRequest request, long page, long size) {
+        String material = page + "\u0000" + size + "\u0000"
+                + String.valueOf(request.getPlatform()) + "\u0000"
+                + String.valueOf(request.getDifficulty()) + "\u0000"
+                + String.valueOf(request.getKeyword() == null ? "" : request.getKeyword().strip()) + "\u0000"
+                + String.valueOf(request.getCreatorUserId());
+        return RedisJsonCache.keyFor("acmate:cache:problems:v1", material);
     }
 
     @Override
